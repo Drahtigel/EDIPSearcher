@@ -1,0 +1,114 @@
+﻿<Window x:Class="EDIPSearch.frmMikrotikRestConfig"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:EDIPSearch"
+        mc:Ignorable="d"
+        Title="Интеграция: Настройка маршрутизаторов Mikrotik Rest API" Height="420" Width="680" WindowStartupLocation="CenterOwner" Background="#11161B" Foreground="#E0E6ED"
+        Icon="pack://application:,,,/app_icon.ico">
+    <Window.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <!-- Подключаем созданный файл темы из ресурсов проекта -->
+                <ResourceDictionary Source="EliteTheme.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Window.Resources>
+    <Grid Margin="10">
+        
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="220"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- Левая панель: Список роутеров REST API -->
+        <Grid Grid.Column="0" Margin="0,0,10,0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+            <ListBox x:Name="lstRouters" DisplayMemberPath="Name" SelectionChanged="LstRouters_SelectionChanged"/>
+            <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,10,0,0">
+                <Button Content="Добавить" Width="85" Margin="5" Click="BtnAdd_Click" Background="{x:Null}" Style="{StaticResource EliteButton}"/>
+                <Button Content="Удалить" Width="85" Margin="5" Click="BtnDelete_Click" Style="{StaticResource EliteButton}"/>
+            </StackPanel>
+        </Grid>
+
+        <!-- Правая панель: Редактор выбранного роутера -->
+        <Border Grid.Column="1" Background="#FF1B1611" CornerRadius="5" Padding="15" BorderBrush="#FFDA761D" BorderThickness="1">
+            <Grid x:Name="gridEditor" Visibility="Collapsed">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="180"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <Label Content="Название конфигурации:" Grid.Row="0" VerticalAlignment="Center"/>
+                <TextBox x:Name="txtName" Grid.Row="0" Grid.Column="1" Margin="5"/>
+
+                <Label Content="Внутренний IP (LAN):" Grid.Row="1" VerticalAlignment="Center"/>
+                <TextBox x:Name="txtIp" Grid.Row="1" Grid.Column="1" Margin="5"/>
+
+                <Grid Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="130"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <Label Content="Порт REST API:" VerticalAlignment="Center"/>
+                    <TextBox x:Name="txtPort" Grid.Column="1" Margin="5"/>
+                    <CheckBox x:Name="chkSsl" Content="Использовать SSL" Grid.Column="2" VerticalAlignment="Center" Margin="10,0,5,0"/>
+                </Grid>
+
+                <Label Content="Имя пользователя:" Grid.Row="3" VerticalAlignment="Center"/>
+                <TextBox x:Name="txtUser" Grid.Row="3" Grid.Column="1" Margin="5"/>
+
+                <Label Content="Пароль:" Grid.Row="4" VerticalAlignment="Center"/>
+                <PasswordBox x:Name="txtPass" Grid.Row="4" Grid.Column="1" Margin="5" PasswordChanged="TxtPass_PasswordChanged"/>
+
+                <Label Content="Целевой список (ED):" Grid.Row="5" VerticalAlignment="Center"/>
+                <Grid Grid.Row="5" Grid.Column="1" Margin="5">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <!-- Выпадающий список, полученный прямо из микротика -->
+                    <ComboBox x:Name="cmbAddressLists" IsEditable="True" ToolTip="Выберите из существующих или введите новое имя"/>
+                    <Button x:Name="btnFetchLists" Content="🔄" Grid.Column="1" Width="30" Margin="5,0,0,0" ToolTip="Загрузить доступные списки с роутера" Click="BtnFetchLists_Click" Style="{StaticResource EliteButton}" />
+                </Grid>
+
+                <!-- Шаг 5 (Целевой список) у нас уже есть. Добавляем на Роу 6 (Внешний интерфейс): -->
+                <Label Content="Внешний (WAN) интерфейс:" Grid.Row="6" VerticalAlignment="Center"/>
+                <Grid Grid.Row="6" Grid.Column="1" Margin="5">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <!-- Заменили TextBox на ComboBox -->
+                    <ComboBox x:Name="cmbWanInterface" IsEditable="True" ToolTip="Выберите WAN-интерфейс роутера или введите вручную"/>
+                    <Button x:Name="btnFetchInterfaces" Content="🔄" Grid.Column="1" Width="30" Margin="5,0,0,0" ToolTip="Загрузить доступные интерфейсы" Click="BtnFetchInterfaces_Click" Style="{StaticResource EliteButton}"/>
+                </Grid>
+
+                <!-- Сдвигаем индикатор проверки связи на Роу 7 -->
+                <StackPanel Grid.Row="7" Grid.Column="0" Grid.ColumnSpan="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="5,10,0,0">
+                    <Button x:Name="btnTest" Content="Проверить связь" Width="130" Height="28" Click="BtnTest_Click" Style="{StaticResource EliteButton}"/>
+                    <TextBlock x:Name="lblTestStatus" VerticalAlignment="Center" Margin="15,0,0,0" FontWeight="Bold"/>
+                </StackPanel>
+
+                <!-- Сдвигаем сохранение на Роу 8 -->
+                <Button Content="Сохранить настройки" Grid.Row="8" Grid.Column="1" HorizontalAlignment="Right" Width="140" Height="28" Click="BtnSave_Click" Style="{StaticResource EliteButton}"/>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

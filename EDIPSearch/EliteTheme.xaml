@@ -1,0 +1,667 @@
+﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- 1. АУТЕНТИЧНЫЙ И УПРАВЛЯЕМЫЙ СТИЛЬ КНОПОК -->
+    <Style x:Key="EliteButton" TargetType="Button">
+        <Setter Property="Background" Value="#1B2228"/>
+        <Setter Property="Foreground" Value="#FF7100"/>
+        <Setter Property="BorderBrush" Value="#FF7100"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Padding" Value="12,5"/>
+        <Setter Property="FontWeight" Value="Bold"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="border" 
+                            Background="{TemplateBinding Background}" 
+                            BorderBrush="{TemplateBinding BorderBrush}" 
+                            BorderThickness="{TemplateBinding BorderThickness}" 
+                            CornerRadius="2" 
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="border" Property="Background" Value="#33FF7100"/>
+                            <Setter Property="Foreground" Value="#FFA000"/>
+                            <Setter Property="BorderBrush" Value="#FFA000"/>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="border" Property="Background" Value="#55FF7100"/>
+                            <Setter Property="Foreground" Value="#FFFFFF"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="border" Property="Background" Value="#0D1115"/>
+                            <Setter TargetName="border" Property="BorderBrush" Value="#44FF7100"/>
+                            <Setter Property="Foreground" Value="#44FF7100"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- 2. СТИЛЬ ДЛЯ CHECKBOX (Оранжевый контур и темный фон) -->
+    <Style TargetType="CheckBox">
+        <Setter Property="Foreground" Value="#E0E6ED"/>
+        <Setter Property="FontWeight" Value="Bold"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="CheckBox">
+                    <BulletDecorator Background="Transparent" Cursor="Hand">
+                        <BulletDecorator.Bullet>
+                            <Border x:Name="border" Width="14" Height="14" Background="#11161B" BorderBrush="#FF7100" BorderThickness="1" CornerRadius="1">
+                                <Grid x:Name="checkmark" Visibility="Collapsed">
+                                    <Path Data="M 2,6 L 5,9 L 10,2" Stroke="#FFA000" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                                </Grid>
+                            </Border>
+                        </BulletDecorator.Bullet>
+                        <ContentPresenter Margin="6,0,0,0" VerticalAlignment="Center"/>
+                    </BulletDecorator>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="checkmark" Property="Visibility" Value="Visible"/>
+                            <Setter TargetName="border" Property="Background" Value="#1B2228"/>
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="border" Property="BorderBrush" Value="#FFA000"/>
+                            <Setter TargetName="border" Property="Background" Value="#22FF7100"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="border" Property="BorderBrush" Value="#44FF7100"/>
+                            <Setter Property="Foreground" Value="#44FF7100"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+    <!-- 3. СТИЛЬ ДЛЯ TEXTBOX (Поля ввода теперь тёмные с оранжевым контуром) -->
+    <Style TargetType="TextBox">
+        <Setter Property="Background" Value="#11161B"/>
+        <Setter Property="Foreground" Value="#E0E6ED"/>
+        <Setter Property="BorderBrush" Value="#33FF7100"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Padding" Value="5,3"/>
+        <Setter Property="CaretBrush" Value="#FF7100"/>
+        <!-- Оранжевый курсор ввода -->
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TextBox">
+                    <Border x:Name="border" 
+                            Background="{TemplateBinding Background}" 
+                            BorderBrush="{TemplateBinding BorderBrush}" 
+                            BorderThickness="{TemplateBinding BorderThickness}" 
+                            CornerRadius="2">
+                        <!-- Внутренний контейнер для текста WPF -->
+                        <ScrollViewer x:Name="PART_ContentHost" Focusable="false" HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Hidden"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <!-- При фокусе (клике внутрь) рамка ярко загорается -->
+                        <Trigger Property="IsFocused" Value="True">
+                            <Setter TargetName="border" Property="BorderBrush" Value="#FF7100"/>
+                            <Setter Property="Background" Value="#161C20"/>
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="border" Property="BorderBrush" Value="#FFA000"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Foreground" Value="#44FF7100"/>
+                            <Setter TargetName="border" Property="BorderBrush" Value="#22FF7100"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Мапим стиль для PasswordBox (для окон настроек) -->
+    <!-- ИСПРАВЛЕННЫЙ СТИЛЬ ДЛЯ PASSWORDBOX -->
+    <Style TargetType="PasswordBox">
+        <Setter Property="Background" Value="#11161B"/>
+        <Setter Property="Foreground" Value="#E0E6ED"/>
+        <Setter Property="BorderBrush" Value="#33FF7100"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Padding" Value="5,3"/>
+        <Setter Property="CaretBrush" Value="#FF7100"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="PasswordBox">
+                    <Border x:Name="border" 
+                            Background="{TemplateBinding Background}" 
+                            BorderBrush="{TemplateBinding BorderBrush}" 
+                            BorderThickness="{TemplateBinding BorderThickness}" 
+                            CornerRadius="2">
+                        <!-- Для PasswordBox внутренний контейнер называется PART_ContentHost, как и у TextBox -->
+                        <ScrollViewer x:Name="PART_ContentHost" Focusable="false" HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Hidden"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsFocused" Value="True">
+                            <Setter TargetName="border" Property="BorderBrush" Value="#FF7100"/>
+                            <Setter Property="Background" Value="#161C20"/>
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="border" Property="BorderBrush" Value="#FFA000"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Foreground" Value="#44FF7100"/>
+                            <Setter TargetName="border" Property="BorderBrush" Value="#22FF7100"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+
+    <!-- 4. СТИЛЬ ДЛЯ TOOLBAR (Панели инструментов) -->
+    <Style TargetType="ToolBar">
+        <Setter Property="Background" Value="#1B2228"/>
+        <Setter Property="BorderBrush" Value="#33FF7100"/>
+        <Setter Property="BorderThickness" Value="0,0,0,1"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToolBar">
+                    <Border Background="{TemplateBinding Background}" 
+                            BorderBrush="{TemplateBinding BorderBrush}" 
+                            BorderThickness="{TemplateBinding BorderThickness}" 
+                            Padding="5">
+                        <!-- Выводим элементы панели внутри Grid -->
+                        <ToolBarPanel x:Name="PART_ToolBarPanel" IsItemsHost="true" Orientation="Horizontal"/>
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Перекрашиваем контейнер панелей ToolBarTray -->
+    <Style TargetType="ToolBarTray">
+        <Setter Property="Background" Value="#11161B"/>
+    </Style>
+
+    <!-- 5. СТИЛИ ДЛЯ TABCONTROL И TABITEM -->
+    <Style TargetType="TabControl">
+        <Setter Property="Background" Value="#1B2228"/>
+        <Setter Property="BorderBrush" Value="#33FF7100"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Padding" Value="10"/>
+    </Style>
+
+    <Style TargetType="TabItem">
+        <Setter Property="Background" Value="#11161B"/>
+        <Setter Property="Foreground" Value="#FF7100"/>
+        <Setter Property="BorderBrush" Value="#33FF7100"/>
+        <Setter Property="BorderThickness" Value="1,1,1,0"/>
+        <Setter Property="Padding" Value="15,6"/>
+        <Setter Property="FontWeight" Value="Bold"/>
+        <Setter Property="Margin" Value="0,0,2,0"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TabItem">
+                    <Border x:Name="Panel" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="3,3,0,0" Padding="{TemplateBinding Padding}" Cursor="Hand">
+                        <ContentPresenter x:Name="ContentSite" ContentSource="Header" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="Panel" Property="Background" Value="#1B2228"/>
+                            <Setter Property="Foreground" Value="#FFA000"/>
+                            <Setter TargetName="Panel" Property="BorderBrush" Value="#FF7100"/>
+                            <Setter TargetName="Panel" Property="BorderThickness" Value="1,2,1,0"/>
+                        </Trigger>
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsMouseOver" Value="True"/>
+                                <Condition Property="IsSelected" Value="False"/>
+                            </MultiTrigger.Conditions>
+                            <Setter TargetName="Panel" Property="Background" Value="#22FF7100"/>
+                            <Setter Property="Foreground" Value="#FFA000"/>
+                        </MultiTrigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- 6. ЖЕЛЕЗОБЕТОННАЯ СТИЛИЗАЦИЯ LISTBOX С ОРАНЖЕВЫМ СКРОЛЛОМ -->
+    <Style TargetType="ListBox">
+        <Setter Property="Background" Value="#11161B"/>
+        <Setter Property="Foreground" Value="#FFA000"/>
+        <Setter Property="BorderBrush" Value="#33FF7100"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled"/>
+        <!-- Отключаем горизонтальную полосу -->
+        <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto"/>
+
+        <!-- НАПРАВЛЯЕМ ПЕРЕНОС СТРОК НА ВСЕ ВНУТРЕННИЕ СТИЛИ СРАЗУ -->
+        <Style.Resources>
+            <!-- Стиль ползунка (ScrollThumbs) -->
+            <Style x:Key="ScrollThumbs" TargetType="Thumb">
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Thumb">
+                            <Grid x:Name="Grid">
+                                <Border HorizontalAlignment="Stretch" VerticalAlignment="Stretch" 
+                                        Background="#55FF7100" CornerRadius="3" MinHeight="20" />
+                            </Grid>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="true">
+                                    <Setter Property="Background" Value="#FF7100"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <!-- Стиль Скроллбара -->
+            <Style TargetType="ScrollBar">
+                <Setter Property="Background" Value="#11161B" />
+                <Setter Property="Width" Value="8" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ScrollBar">
+                            <Grid x:Name="Bg" Background="#11161B" SnapsToDevicePixels="true">
+                                <Track x:Name="PART_Track" IsDirectionReversed="true" IsEnabled="{TemplateBinding IsEnabled}">
+                                    <Track.DecreaseRepeatButton>
+                                        <RepeatButton Command="ScrollBar.LineUpCommand" Opacity="0" Focusable="false" />
+                                    </Track.DecreaseRepeatButton>
+                                    <Track.Thumb>
+                                        <Thumb Style="{StaticResource ScrollThumbs}" />
+                                    </Track.Thumb>
+                                    <Track.IncreaseRepeatButton>
+                                        <RepeatButton Command="ScrollBar.LineDownCommand" Opacity="0" Focusable="false" />
+                                    </Track.IncreaseRepeatButton>
+                                </Track>
+                            </Grid>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+        </Style.Resources>
+    </Style>
+
+    <!-- 7. ФИНАЛЬНЫЙ СТИЛЬ ДЛЯ СТРОК СПИСКА С ПОВЫШЕННОЙ ЯРКОСТЬЮ НЕОНА -->
+    <Style TargetType="ListBoxItem">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Foreground" Value="#FFA000"/>
+        <Setter Property="Padding" Value="8,6"/>
+        <Setter Property="Margin" Value="0,0,0,2"/>
+        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ListBoxItem">
+                    <!-- 1. ДЕФОЛТНОЕ СОСТОЯНИЕ: Сделали нижнюю линию ярче (#33 вместо #19) -->
+                    <Border x:Name="IconBorder" 
+                            Background="{TemplateBinding Background}" 
+                            Padding="{TemplateBinding Padding}" 
+                            CornerRadius="2"
+                            BorderBrush="#33FF7100" 
+                            BorderThickness="0,0,0,1">
+
+                        <TextBlock Text="{Binding .}" 
+                                   TextWrapping="Wrap" 
+                                   Foreground="{TemplateBinding Foreground}" 
+                                   FontSize="11"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <!-- 2. НАВЕДЕНИЕ МЫШИ (MOUSE OVER): Сделали фон и линию ощутимо сочнее -->
+                        <Trigger Property="IsMouseOver" Value="true">
+                            <!-- Фон стал плотнее (#25 вместо #1A) -->
+                            <Setter TargetName="IconBorder" Property="Background" Value="#25FF7100"/>
+                            <!-- Нижняя линия разгорается в полную силу (#66 вместо #44) -->
+                            <Setter TargetName="IconBorder" Property="BorderBrush" Value="#66FF7100"/>
+                            <Setter Property="Foreground" Value="#FFFFFF"/>
+                        </Trigger>
+                        <!-- 3. СТРОКА ВЫДЕЛЕНА КЛИКОМ (SELECTED) -->
+                        <Trigger Property="IsSelected" Value="true">
+                            <Setter TargetName="IconBorder" Property="Background" Value="#44FF7100"/>
+                            <Setter TargetName="IconBorder" Property="BorderBrush" Value="#FF7100"/>
+                            <Setter Property="Foreground" Value="#FFFFFF"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+
+
+    <!-- 9. ПРАВИЛЬНАЯ СТИЛИЗАЦИЯ LISTVIEW (Сохраняет колонки GridView и раскрашивает строки) -->
+    <Style TargetType="ListViewItem">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Foreground" Value="#FFA000"/>
+        <Setter Property="Padding" Value="6,4"/>
+        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ListViewItem">
+                    <!-- Задаем строку таблицы с нижней тонкой неоновой линией -->
+                    <Border x:Name="RowBorder" 
+            Background="{TemplateBinding Background}" 
+            BorderBrush="#19FF7100" 
+            BorderThickness="0,0,0,1" 
+            Padding="{TemplateBinding Padding}">
+
+                        <!-- ИСПРАВЛЕННЫЙ ЭЛЕМЕНТ: Отвечает за правильный вывод колонок GridView в WPF -->
+                        <GridViewRowPresenter Content="{TemplateBinding Content}"/>
+
+                    </Border>
+                    <!-- Ниже идут твои ControlTemplate.Triggers без изменений -->
+
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="true">
+                            <Setter TargetName="RowBorder" Property="Background" Value="#1AFF7100"/>
+                            <Setter Property="Foreground" Value="#FFFFFF"/>
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="true">
+                            <Setter TargetName="RowBorder" Property="Background" Value="#33FF7100"/>
+                            <Setter TargetName="RowBorder" Property="BorderBrush" Value="#FF7100"/>
+                            <Setter Property="Foreground" Value="#FFFFFF"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+
+
+    <!-- 7. ИСПРАВЛЕННАЯ КНОПКА-СТРЕЛКА ДЛЯ COMBOBOX (Зафиксировали справа) -->
+    <Style x:Key="ComboBoxToggleButton" TargetType="ToggleButton">
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToggleButton">
+                    <!-- ДОБАВЛЕНО: Прижимаем к правому краю и ставим ширину 24 -->
+                    <Border x:Name="Border" 
+                            Background="#1B2228" 
+                            BorderBrush="#33FF7100" 
+                            BorderThickness="0,1,1,1" 
+                            CornerRadius="0,2,2,0"
+                            HorizontalAlignment="Right"
+                            Width="24"
+                            Height="{TemplateBinding Height}">
+                        <!-- Рисуем оранжевый треугольник-стрелочку -->
+                        <Path x:Name="Arrow" 
+                              Data="M 0 0 L 4 4 L 8 0 Z" 
+                              Fill="#FF7100" 
+                              HorizontalAlignment="Center" 
+                              VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="true">
+                            <Setter TargetName="Border" Property="Background" Value="#33FF7100"/>
+                            <Setter TargetName="Arrow" Property="Fill" Value="#FFA000"/>
+                        </Trigger>
+                        <Trigger Property="IsChecked" Value="true">
+                            <Setter TargetName="Border" Property="Background" Value="#55FF7100"/>
+                            <Setter TargetName="Arrow" Property="Fill" Value="#FFFFFF"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+
+    <!-- [ШАГ 2] ТОЛЬКО ТЕПЕРЬ ОБЪЯВЛЯЕМ САМ COMBOBOX, ИСПОЛЬЗУЮЩИЙ СТИЛЬ ВЫШЕ -->
+    <Style TargetType="ComboBox">
+        <Setter Property="Background" Value="#11161B"/>
+        <Setter Property="Foreground" Value="#E0E6ED"/>
+        <Setter Property="BorderBrush" Value="#33FF7100"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Padding" Value="5,3"/>
+        <Setter Property="SnapsToDevicePixels" Value="true"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ComboBox">
+                    <Grid x:Name="MainGrid">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="24"/>
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Кнопка-стрелка раскрытия (вызывает стиль по ключу сверху) -->
+                        <ToggleButton Style="{StaticResource ComboBoxToggleButton}" 
+                                      Grid.Column="0" Grid.ColumnSpan="2" 
+                                      Focusable="false"
+                                      IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"/>
+
+                        <!-- Фоновая рамка текстовой зоны -->
+                        <Border x:Name="ContentBorder" Background="#11161B" BorderBrush="#33FF7100" BorderThickness="1,1,0,1" CornerRadius="2,0,0,2" Margin="0"/>
+
+                        <!-- Контейнер для статического текста -->
+                        <ContentPresenter Name="ContentSite" IsHitTestVisible="False" 
+                                          Content="{TemplateBinding SelectionBoxItem}" 
+                                          ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}" 
+                                          ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}" 
+                                          Margin="6,3,0,3" VerticalAlignment="Center" HorizontalAlignment="Left"/>
+
+                        <!-- Внутренний TextBox для режима IsEditable="True" -->
+                        <TextBox x:Name="PART_EditableTextBox" 
+                                 HorizontalAlignment="Stretch" VerticalAlignment="Center" 
+                                 Margin="3,2,2,2" Focusable="true" 
+                                 Background="Transparent" Foreground="#E0E6ED" 
+                                 BorderThickness="0" Visibility="Hidden" 
+                                 IsReadOnly="{TemplateBinding IsReadOnly}">
+                            <TextBox.Style>
+                                <Style TargetType="TextBox">
+                                    <Setter Property="CaretBrush" Value="#FF7100"/>
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="TextBox">
+                                                <ScrollViewer x:Name="PART_ContentHost" Focusable="false" Background="Transparent"/>
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                </Style>
+                            </TextBox.Style>
+                        </TextBox>
+
+                        <!-- Выпадающее окно со списком -->
+                        <Popup Name="Popup" Placement="Bottom" IsOpen="{TemplateBinding IsDropDownOpen}" AllowsTransparency="true" Focusable="false" PopupAnimation="Slide">
+                            <Grid Name="DropDown" SnapsToDevicePixels="true" MinWidth="{TemplateBinding ActualWidth}" MaxHeight="{TemplateBinding MaxDropDownHeight}">
+                                <Border Name="DropDownBorder" Background="#11161B" BorderBrush="#FF7100" BorderThickness="1" CornerRadius="0,0,2,2"/>
+                                <ScrollViewer Margin="4,6,4,6" SnapsToDevicePixels="true">
+                                    <StackPanel IsItemsHost="true" KeyboardNavigation.DirectionalNavigation="Contained"/>
+                                </ScrollViewer>
+                            </Grid>
+                        </Popup>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsEditable" Value="true">
+                            <Setter Property="IsTabStop" Value="false"/>
+                            <Setter TargetName="PART_EditableTextBox" Property="Visibility" Value="Visible"/>
+                            <Setter TargetName="ContentSite" Property="Visibility" Value="Hidden"/>
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="true">
+                            <Setter TargetName="ContentBorder" Property="BorderBrush" Value="#FFA000"/>
+                        </Trigger>
+                        <Trigger Property="IsFocused" Value="true">
+                            <Setter TargetName="ContentBorder" Property="BorderBrush" Value="#FF7100"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- 9. СТИЛИЗАЦИЯ СТРОК ВНУТРИ ВЫПАДАЮЩЕГО СПИСКА COMBOBOX -->
+    <Style TargetType="ComboBoxItem">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Foreground" Value="#FFA000"/>
+        <Setter Property="Padding" Value="6,4"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ComboBoxItem">
+                    <Border x:Name="ItemBorder" Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}" CornerRadius="2">
+                        <ContentPresenter />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="true">
+                            <Setter TargetName="ItemBorder" Property="Background" Value="#1AFF7100"/>
+                            <Setter Property="Foreground" Value="#FFFFFF"/>
+                        </Trigger>
+                        <Trigger Property="IsHighlighted" Value="true">
+                            <Setter TargetName="ItemBorder" Property="Background" Value="#33FF7100"/>
+                            <Setter Property="Foreground" Value="#FFFFFF"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+
+    
+    <!-- ДОБАВЛЕНО: Принудительно заставляем TextBox внутри ToolBar использовать нашу тему -->
+    <Style x:Key="{x:Static ToolBar.TextBoxStyleKey}" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+        <Setter Property="Width" Value="120"/>
+        <!-- Задай базовую ширину поля на тулбаре, если нужно -->
+        <Setter Property="Margin" Value="2,0"/>
+    </Style>
+    <!-- ИСПРАВЛЕННЫЙ СТИЛЬ ДЛЯ LABEL (Убрали жесткие маргины, чтобы не ломать старую верстку) -->
+    <Style TargetType="Label">
+        <Setter Property="Foreground" Value="#AAFF7100"/>
+        <!-- Наш фирменный приглушенный оранжевый -->
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <!-- Мы убираем отсюда VerticalAlignment и Margin. 
+             Для новых окон (frmMikrotikRestConfig) мы пропишем выравнивание прямо в XAML самого окна, 
+             чтобы это никак не задевало твою старую форму настроек фильтров! -->
+    </Style>
+    <!-- 9. СТИЛЬ ДЛЯ TEXTBLOCK (Окрашиваем весь простой текст в читаемый цвет) -->
+    <Style TargetType="TextBlock">
+        <!-- Делаем базовый текст светло-серым, чтобы знаки + и - стали видны -->
+        <Setter Property="Foreground" Value="#E0E6ED"/>
+        <!-- Задаем сглаживание шрифтов для идеального отображения на темном фоне -->
+        <Setter Property="TextOptions.TextFormattingMode" Value="Display"/>
+        <Setter Property="TextOptions.TextRenderingMode" Value="ClearType"/>
+    </Style>
+
+    <!-- 9. ИСПРАВЛЕННАЯ СТИЛИЗАЦИЯ LISTVIEW (Оранжевый скроллбар и отключение горизонтальной полосы) -->
+    <Style TargetType="ListView">
+        <Setter Property="Background" Value="#11161B"/>
+        <Setter Property="Foreground" Value="#E0E6ED"/>
+        <Setter Property="BorderBrush" Value="#33FF7100"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <!-- Жестко отключаем горизонтальный скролл, чтобы убрать полосу снизу -->
+        <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled"/>
+        <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto"/>
+
+        <Style.Resources>
+            <!-- 1. СНАЧАЛА ЗАКИДЫВАЕМ СТИЛЬ ПОЛЗУНКА ВНУТРЬ РЕСУРСОВ LISTVIEW -->
+            <Style x:Key="ScrollThumbs" TargetType="Thumb">
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Thumb">
+                            <Grid x:Name="Grid">
+                                <Border HorizontalAlignment="Stretch" VerticalAlignment="Stretch" 
+                                        Background="#55FF7100" CornerRadius="3" MinHeight="20" />
+                            </Grid>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="true">
+                                    <Setter Property="Background" Value="#FF7100"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <!-- 2. НАШ СКРОЛЛБАР С ИДЕАЛЬНО ТАКТИЧЕСКИ ВЫРОВНЕННЫМИ ТЕГАМИ -->
+            <Style TargetType="ScrollBar">
+                <Setter Property="Background" Value="#11161B" />
+                <Setter Property="Width" Value="8" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ScrollBar">
+                            <Grid x:Name="Bg" Background="#11161B" SnapsToDevicePixels="true">
+                                <!-- Track открывается -->
+                                <Track x:Name="PART_Track" IsDirectionReversed="true" IsEnabled="{TemplateBinding IsEnabled}">
+                                    <Track.DecreaseRepeatButton>
+                                        <RepeatButton Command="ScrollBar.LineUpCommand" Opacity="0" Focusable="false" />
+                                    </Track.DecreaseRepeatButton>
+                                    <Track.Thumb>
+                                        <Thumb Style="{StaticResource ScrollThumbs}" />
+                                    </Track.Thumb>
+                                    <Track.IncreaseRepeatButton>
+                                        <RepeatButton Command="ScrollBar.LineDownCommand" Opacity="0" Focusable="false" />
+                                    </Track.IncreaseRepeatButton>
+                                </Track>
+                                <!-- Track закрывается строго на своем месте! -->
+                            </Grid>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+        </Style.Resources>
+
+    </Style>
+    <!-- 10. ФИНАЛЬНАЯ ИЗОЛЯЦИЯ МЕНЮ (ПОЛНОСТЬЮ ВЫРЕЗАЕТ БЕЛЫЙ АРТЕФАКТ ТЕНИ WINDOWS) -->
+    <Style TargetType="ContextMenu">
+        <Setter Property="Background" Value="#1B2228"/>
+        <Setter Property="BorderBrush" Value="#FF7100"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="OverridesDefaultStyle" Value="True"/>
+        <Setter Property="Grid.IsSharedSizeScope" Value="True"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ContextMenu">
+                    <!-- ГЛАВНЫЙ ФИКС: Мы полностью убрали SystemDropShadowChrome из шаблона! 
+                         Теперь здесь только наш чистый космический Border, и белому пятну физически неоткуда взяться. -->
+                    <Border Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="2"
+                            Padding="2">
+                        <!-- Внутренний контейнер, который выводит пункты MenuItem строго вертикально -->
+                        <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle"/>
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- СТИЛИЗАЦИЯ ПУНКТОВ МЕНЮ С ЯРКИМ ЧИТАЕМЫМ ТЕКСТОМ -->
+    <Style TargetType="MenuItem">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Foreground" Value="#FF7100"/>
+        <!-- Наш фирменный оранжевый текст -->
+        <Setter Property="FontWeight" Value="Bold"/>
+        <Setter Property="Padding" Value="15,8"/>
+        <Setter Property="OverridesDefaultStyle" Value="True"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="MenuItem">
+                    <Border x:Name="MenuBorder" 
+                            Background="{TemplateBinding Background}" 
+                            CornerRadius="2"
+                            Margin="1"
+                            Padding="{TemplateBinding Padding}">
+
+                        <!-- Выводим текст. Принудительно ставим контрастный цвет Foreground -->
+                        <TextBlock Text="{TemplateBinding Header}" 
+                                   Foreground="{TemplateBinding Foreground}"
+                                   VerticalAlignment="Center"
+                                   HorizontalAlignment="Left"
+                                   FontSize="11"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <!-- ЭФФЕКТ НАВЕДЕНИЯ МЫШИ (HOVER) -->
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="MenuBorder" Property="Background" Value="#33FF7100"/>
+                            <Setter Property="Foreground" Value="#FFFFFF"/>
+                            <!-- При наведении текст горит белым неоном -->
+                        </Trigger>
+                        <!-- Дублируем для триггера фокуса таблицы -->
+                        <Trigger Property="IsHighlighted" Value="True">
+                            <Setter TargetName="MenuBorder" Property="Background" Value="#33FF7100"/>
+                            <Setter Property="Foreground" Value="#FFFFFF"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+
+</ResourceDictionary>
