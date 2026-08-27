@@ -9,6 +9,7 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using Windows.ApplicationModel.Contacts;
 using Windows.UI.Input.Inking.Preview;
 using static ipinpool.wiseIPList;
 
@@ -137,18 +138,47 @@ namespace ipinpool
         {
             try
             {
-                //TextReader reader = new StreamReader(filename);
                 FileStream fs = File.Open(filename, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
                 TextReader reader = new StreamReader(fs);
                 string? currentLine = String.Empty;
                 currentLine = reader.ReadLine();
+
                 while (currentLine != null)
                 {
-                    string ip_str = ipSearch(currentLine);
-                    if (ip_str != null)
+                    // 1. АВТОМАТИЧЕСКИЙ ДИНАМИЧЕСКИЙ ФИЛЬТР (Убираем рутину пользователя)
+                    // Ищем маркеры локального внешнего адреса или STUN-точки выхода
+                    if (currentLine.Contains("WAN:") ||
+                        currentLine.Contains("STUN mapped address is"))
+                       
                     {
+                        // Выдергиваем IP-адрес из этой конкретной технической строки
+                        string filterIpStr = ipSearch(currentLine);
+                        if (!string.IsNullOrEmpty(filterIpStr))
+                        {
+                            IPclass? filterIpObj = IPclass.Parse($"{filterIpStr}/32");
+                            if (filterIpObj != null)
+                            {
+                                // Если этого адреса еще нет в черном списке — добавляем его в Filter!
+                                // Метод AddrInTable у тебя уже написан на странице 2.
+                                if (!AddrInTable(filterIpObj, this.Filter))
+                                {
+                                    this.Filter.Add(filterIpObj);
+                                    // Можно отправить лог в отладку, чтобы видеть, что автофильтр сработал
+                                    System.Diagnostics.Debug.WriteLine($"[AutoFilter] Локальный/STUN адрес изолирован: {filterIpStr}");
+                                }
+                            }
+                        }
+                    }
+
+                    // 2. БОЕВОЙ ПАРСИНГ ИГРОВЫХ ХОСТОВ (Остается штатным)
+                    string ip_str = ipSearch(currentLine);
+                    if (!string.IsNullOrEmpty(ip_str))
+                    {
+                        // Твой метод AddAddress сам сличит адрес с обновленным списком Filter 
+                        // и заблокирует добавление твоего WAN/STUN IP в общую таблицу!
                         AddAddress(IPclass.Parse(ip_str));
                     }
+
                     currentLine = reader.ReadLine();
                 }
                 reader.Close();
@@ -159,16 +189,31 @@ namespace ipinpool
                 Console.WriteLine(e.ToString());
             }
         }
+
         private string ipSearch(string logEntry)
         {
-            Regex reg = new Regex("((2[0-4]\\d|25[0-5]|[01]?\\d\\d?)\\.){3}(2[0-4]\\d|25[0-5]|[01]?\\d\\d?)");
-            if(reg.IsMatch(logEntry))
+            if (string.IsNullOrEmpty(logEntry)) return String.Empty;
+            //Logwrite(logEntry);
+            // ИСПРАВЛЕНО: \b требует, чтобы перед первой и после последней цифры шла граница слова.
+            // {1,3} означает строго от 1 до 3 цифр в каждом октете.
+            // Теперь число 4.0.0.1103 будет полностью ПРОИГНОРИРОВАНО, так как 1103 содержит 4 цифры!
+            Regex reg = new Regex(@"\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b");
+
+            if (reg.IsMatch(logEntry))
             {
-              return reg.Match(logEntry).ToString();
+                string rez = reg.Match(logEntry).ToString();
+              //  Logwrite("[!IPF!] =>>"+rez);
+                return rez;
             }
             return String.Empty;
         }
-
+        private static void Logwrite(string outstr)
+        {
+            var fl = File.AppendText("f:\\!log.txt");
+            fl.WriteLine(outstr);
+            fl.Flush();
+            fl.Close();
+        }
         public void SaveTo(string filename, bool mikrotik_prep =true)
         {
             try
@@ -279,91 +324,128 @@ namespace ipinpool
 
     public class IPclass
     {
-        public byte[] IPA {  get; set; }  = {0,0,0,0};
-        public int Port { get; set; } = 0;
-        public int PoolSize {get; set; } = 32;
-        public bool IsPool { get {  return PoolSize < 32; } } 
-        private int _inPoolCounter = 0;
-        public int InPoolCounter { get { return _inPoolCounter; } } 
-        public static bool TryParse(string str, out IPclass pc)
+        // Заменяем автосвойство на жесткое приватное поле.
+        // Это на 100% заставит компилятор в Release выделять новый изолированный массив для каждого объекта!
+        internal byte[] _ipa = new byte[4];
+
+        // Публичное свойство теперь просто ссылается на наше изолированное поле
+        public byte[] IPA
         {
-            pc = new IPclass();
-            if (str.Trim().ToLower().IndexOf("#")>-1) return false;
-            if (str.Trim().ToLower().IndexOf("#") > -1) return false;
-            string tmps = str.ToLower().Replace("add address=", "");
-            int ioflist = tmps.IndexOf("list");
-            if(ioflist > -1)
-            {
-                tmps = tmps.Substring(0, ioflist);
-            }
-            tmps = tmps.Trim();
-            string ipstr = tmps;
-            if(tmps.IndexOf("/")>0)
-            {
-                string[] ipstrs = tmps.Split("/");
-                ipstr = ipstrs[0];
-                int ps = 1;
-                if (int.TryParse(ipstrs[1],out ps))
-                {
-                   pc.PoolSize = ps;
-                }
-            }
-            if(tmps.IndexOf(":")>0)
-            {
-                string[] ipstrs = tmps.Split(":");
-                ipstr = ipstrs[0];
-                int ps = 1;
-                if (int.TryParse(ipstrs[1], out ps))
-                {
-                    pc.Port = ps;
-                }
-            }
-            //
-            string[] v = ipstr.Split(".");
-            if (v.Length!=4) return false;
-            int id = 0;
-            foreach(string s in v) 
-            {
-                if (byte.TryParse(s, out byte b))
-                {
-                    pc.IPA[id] = b;
-                    id++;
-                }
-                else
-                {
-                    return false;
-                }
-            }
-            return true;
+            get { return _ipa; }
+            set { _ipa = value; }
         }
-        public static IPclass? Parse(string str)
+
+        // Чистый, стандартный конструктор
+        public IPclass()
         {
-            if(IPclass.TryParse(str, out IPclass pc))
-            {
-                return pc;
-            }
-            else
-            {  return null; }
+            // Принудительно выделяем персональный массив из 4 байт при рождении каждого объекта
+            _ipa = new byte[4] { 0, 0, 0, 0 };
+        }
+
+        public int Port { get; set; } = 0;
+        public int PoolSize { get; set; } = 32;
+        public bool IsPool { get { return PoolSize < 32; } }
+
+        private int _inPoolCounter = 0;
+        public int InPoolCounter { get { return _inPoolCounter; } }
+        // Измени заголовок и концовку метода TryParse на обычный возврат объекта
+        private static void Logwrite(IPclass pc)
+        {
+            Logwrite(pc._ipa[0].ToString()+"."+ pc._ipa[1].ToString() +"."+ pc._ipa[2].ToString() + "." + pc._ipa[3].ToString() );
+            Logwrite("---//---");
+        }
+        private static void Logwrite(string out_str)
+        {
+            var fl = File.AppendText("f:\\!log.txt");
+            
+            fl.WriteLine(out_str);
+            fl.Flush();
+            fl.Close();
             
         }
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static IPclass? Parse(string str)
+        {
+
+            if (string.IsNullOrWhiteSpace(str)) return null;
+            if (str.Trim().ToLower().IndexOf("#") > -1) return null;
+           // Logwrite(str);
+            string tmps = str.ToLower().Replace("add address=", "");
+            int ioflist = tmps.IndexOf("list");
+            if (ioflist > -1) tmps = tmps.Substring(0, ioflist);
+            tmps = tmps.Trim();
+            string ipstr = tmps;
+
+            int poolSize = 32;
+            int port = 0;
+
+            if (tmps.IndexOf("/") > 0)
+            {
+                var parts = tmps.Split('/');
+                ipstr = parts[0].Trim();
+                if (parts.Length > 1 && int.TryParse(parts[1], out int ps))
+                    poolSize = ps;
+            }
+
+            if (tmps.IndexOf(":") > 0)
+            {
+                var parts = tmps.Split(':');
+                ipstr = parts[0].Trim();
+                if (parts.Length > 1 && int.TryParse(parts[1], out int p))
+                    port = p;
+            }
+
+            string[] octets = ipstr.Split('.');
+            if (octets.Length != 4) return null;
+
+            if (!byte.TryParse(octets[0], out byte b0) ||
+                !byte.TryParse(octets[1], out byte b1) ||
+                !byte.TryParse(octets[2], out byte b2) ||
+                !byte.TryParse(octets[3], out byte b3))
+                return null;
+
+            // Создаём объект и сразу заполняем его внутренний массив
+            IPclass pc = new IPclass();
+            pc.PoolSize = poolSize;
+            pc.Port = port;
+            pc._ipa[0] = b0;
+            pc._ipa[1] = b1;
+            pc._ipa[2] = b2;
+            pc._ipa[3] = b3;
+          //  Logwrite(pc);
+            return pc;
+        }
+
+        // Старый метод TryParse можно просто перенаправить на новый Parse для совместимости:
+        public static bool TryParse(string str, out IPclass pc)
+        {
+            var res = Parse(str);
+            pc = res ?? new IPclass();
+            return res != null;
+        }
+
         public override string ToString()
         {
             string rez = string.Empty;
             foreach (byte b in IPA)
             {
                 if (rez.Length > 0) { rez += "." + b.ToString(); } else { rez = b.ToString(); }
-
             }
-            if(PoolSize>1)
+
+            // ИСПРАВЛЕНО: Выводим маску / только если это реальный пул (подсеть)!
+            // Для обычных хостов /32 слэш больше выводиться не будет, что спасет JIT от сбоя.
+            if (PoolSize < 32 && PoolSize > 0)
             {
                 rez += "/" + PoolSize.ToString();
             }
-            if(Port>0)
+
+            if (Port > 0)
             {
                 rez += ":" + Port.ToString();
             }
             return rez;
         }
+
         public bool LongIPMask { get; set; } = false;
         public bool IPinPool(IPclass ip)
         {
@@ -426,9 +508,16 @@ namespace ipinpool
 
         private byte getHighRange(byte low, int mask)
         {
-            byte rez = 0;     // 0   1   2  3  4 5 6 7
+            // Защита от переполнения: если из-за инлайнинга JIT сюда прилетит 
+            // некорректный индекс маски, мы жестко ограничиваем его границами массива maskTable
+            int safeMask = mask;
+            if (safeMask < 0) safeMask = 0;
+            if (safeMask > 7) safeMask = 7;
+
+            byte rez = 0;
             byte[] maskTable = { 255, 127, 63, 31, 15, 7, 3, 1 };
-            rez = (byte)(low+maskTable[mask]);
+
+            rez = (byte)(low + maskTable[safeMask]);
             return rez;
         }
         public bool IsAbove(IPclass ip)

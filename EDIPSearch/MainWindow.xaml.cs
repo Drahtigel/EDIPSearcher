@@ -325,13 +325,23 @@ public partial class MainWindow : Window
 
                 using (var reader = new StreamReader(stream, Encoding.UTF8))
                 {
-                    string? line;
-                    while ((line = reader.ReadLine()) != null)
+                    
+                    // БЫЛО:
+                    // string? line;
+                    // while ((line = reader.ReadLine()) != null) { ... Regex.Match(line, ...) ... }
+
+                    // СТАЛО (Защита от оптимизатора Release):
+                    while (true)
                     {
+                        string? currentLine = reader.ReadLine();
+                        if (currentLine == null) break; // Выходим, если лог кончился
+
                         linesReadInThisTick++;
 
-                        // Парсим строку прямо здесь, в фоновом потоке таймера, чтобы не грузить UI регексами!
-                        Match match = Regex.Match(line, @"\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b");
+                        // Создаем абсолютно изолированную копию строки для потока регулярки.
+                        // Это на 100% запретит JIT-компилятору оптимизировать и перетирать память!
+                        string internalLineCopy = string.Concat(currentLine);
+                        Match match = Regex.Match(internalLineCopy, @"\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b");
                         if (match.Success)
                         {
                             IPclass? parsedIp = IPclass.Parse($"{match.Value}/32");
@@ -341,6 +351,7 @@ public partial class MainWindow : Window
                             }
                         }
                     }
+
                     _lastLogPosition = stream.Position;
                 }
             }
@@ -605,27 +616,26 @@ public partial class MainWindow : Window
     }
 
     // 2. СОБЫТИЕ: ПРОГРЕСС ПАРСИНГА (Срабатывает при переходе к каждому следующему файлу)
+    // Внутри твоего метода EDList_OnParseProceed (Прогресс парсинга)
     private void EDList_OnParseProceed(object sender, WIP_Parse_ProceedEventArgs e)
     {
-        Dispatcher.Invoke(() =>
+        Dispatcher.BeginInvoke(new Action(() =>
         {
-            // Извлекаем только имя файла из полного пути для компактности в UI
             string shortName = System.IO.Path.GetFileName(e.Filename);
 
-            // Выводим красивое лог-сообщение в правую панель
-            string logMessage = $"[{DateTime.Now.ToString("HH:mm:ss")}] Анализ файла [{e.FileIndex}]: {shortName}";
-            lstLiveActivity.Items.Insert(0, logMessage);
+            // В RELEASE-МОДЕ: Если файлов ОЧЕНЬ много, частая запись в ListBox 
+            // вызывает коллизии памяти. Обновляем ТОЛЬКО строку статуса внизу!
+            tbStatusVal.Text = $"Анализ: {shortName} ([{e.FileIndex}])";
 
-            // Чтобы список не раздувался до бесконечности, держим последние 100 записей
-            if (lstLiveActivity.Items.Count > 100)
-                lstLiveActivity.Items.RemoveAt(lstLiveActivity.Items.Count - 1);
-
-            // Обновляем счетчик прогресса в статус-баре внизу экрана.
-            // Так как e.FilesCount доступен только на старте, мы можем либо хранить переменную на уровне класса,
-            // либо просто выводить текущий индекс файла и имя.
-            tbStatusVal.Text = $"Файл: {shortName} (Индекс: {e.FileIndex})";
-        });
+            // Добавление в ListBox для логов делаем только для вех, 
+            // например для каждого 5-го файла, чтобы UI не падал в гонку потоков
+            if (e.FileIndex % 5 == 0)
+            {
+                lstLiveActivity.Items.Insert(0, $"[{DateTime.Now:HH:mm:ss}] Обработка пакета [{e.FileIndex}]");
+            }
+        }));
     }
+
 
     // 3. СОБЫТИЕ: ЗАВЕРШЕНИЕ ПАРСИНГА
     private void EDList_OnParseComplete(object sender, EventArgs e)
@@ -773,41 +783,89 @@ public partial class MainWindow : Window
     }
 
 
-// ... внутри класса MainWindow ...
+    // ... внутри класса MainWindow ...
 
-/// <summary>
-/// Продвинутый автоматический поиск папки журналов Elite Dangerous
-/// </summary>
+    /// <summary>
+    /// Продвинутый автоматический поиск папки журналов Elite Dangerous
+    /// </summary>
+    /// <summary>
+    /// Безупречное автоопределение папки сетевых журналов netLog в каталоге установки игры
+    /// </summary>
     private string AutoDetectEliteDangerousPath()
     {
-        // 1. Стандартный путь Windows (Saved Games) в профиле пользователя
-        string userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        string defaultLogPath = System.IO.Path.Combine(userProfile, "Saved Games", "Frontier Developments", "Elite Dangerous");
-
-        if (Directory.Exists(defaultLogPath))
+        // --- ШАГ 1: Поиск в системном реестре установленных программ Windows (Работает при закрытой игре) ---
+        string[] registryPaths = new string[]
         {
-            return defaultLogPath;
-        }
+        // 1. Путь для 64-битных систем (Steam / Epic / Frontier Launcher)
+        @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Elite Dangerous",
+        @"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\Elite Dangerous",
+        // 2. Альтернативный ключ Epic Games Store
+        @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Eden", // Внутреннее имя Элиты в Epic Store
+        // 3. Прямые пути регистрации команд запуска Windows (App Paths)
+        @"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\EliteDangerous64.exe"
+        };
 
-    // 2. Подстраховка: Пробуем найти через реестр Steam, если папка кастомная
-        try
+        foreach (var regPath in registryPaths)
         {
-            using (var key = Registry.CurrentUser.OpenSubKey(@"Software\Valve\Steam"))
+            try
             {
+                // Ищем сначала в ветке LocalMachine, затем в CurrentUser
+                using (var key = Registry.LocalMachine.OpenSubKey(regPath) ?? Registry.CurrentUser.OpenSubKey(regPath))
+                {
                     if (key != null)
                     {
-                        string? steamPath = key.GetValue("SteamPath") as string;
-                        if (!string.IsNullOrEmpty(steamPath))
+                        // Для Uninstall-ключей забираем InstallLocation (папку установки)
+                        string? installDir = key.GetValue("InstallLocation") as string;
+
+                        // Если это был ключ App Paths, забираем значение по умолчанию (путь к .exe)
+                        if (string.IsNullOrEmpty(installDir))
+                        {
+                            string? exePath = key.GetValue("") as string; // Значение (По умолчанию)
+                            if (!string.IsNullOrEmpty(exePath)) installDir = System.IO.Path.GetDirectoryName(exePath);
+                        }
+
+                        if (!string.IsNullOrEmpty(installDir))
+                        {
+                            // Достраиваем сквозной путь до сетевой папки Logs Одиссеи
+                            string logPath = System.IO.Path.Combine(installDir, "Products", "elite-dangerous-odyssey-64", "Logs");
+                            if (Directory.Exists(logPath))
                             {
-                                string steamLogPath = System.IO.Path.Combine(steamPath, "steamapps", "common", "Elite Dangerous");
-                                if (Directory.Exists(steamLogPath)) return steamLogPath;
+                                System.Diagnostics.Debug.WriteLine($"[Registry AutoDetect] Папка логов найдена в реестре Windows: {logPath}");
+                                return logPath;
                             }
+                        }
                     }
+                }
+            }
+            catch { }
+        }
+
+        // --- ШАГ 2: Резервный динамический перехват (Если реестр пуст, но игра запущена прямо сейчас) ---
+        try
+        {
+            Process[] processes = Process.GetProcessesByName("EliteDangerous64");
+            if (processes.Length > 0)
+            {
+                string? exeFullPath = processes[0].MainModule?.FileName;
+                if (!string.IsNullOrEmpty(exeFullPath))
+                {
+                    string? productDirectory = System.IO.Path.GetDirectoryName(exeFullPath);
+                    if (!string.IsNullOrEmpty(productDirectory))
+                    {
+                        string dynamicLogPath = System.IO.Path.Combine(productDirectory, "Logs");
+                        if (Directory.Exists(dynamicLogPath))
+                        {
+                            System.Diagnostics.Debug.WriteLine($"[Process AutoDetect] Путь перехвачен от запущенной игры: {dynamicLogPath}");
+                            return dynamicLogPath;
+                        }
+                    }
+                }
             }
         }
         catch { }
 
-        return string.Empty;
+        return string.Empty; // Если ничего не помогло, пилот выберет папку сам через проводник 📁
     }
+
 
 }

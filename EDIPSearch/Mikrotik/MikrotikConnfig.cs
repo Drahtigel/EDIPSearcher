@@ -18,7 +18,10 @@ public class MikrotikConfig
     public string EncryptedPassword { get; set; } = string.Empty; // Храним только в шифрованном виде
     public string TargetAddressList { get; set; } = "ED"; // Имя списка на роутере
     public string WanInterface { get; set; } = "ether1";
-
+    public override string ToString()
+    {
+        return Name;
+    }
     // Свойство для работы в UI (не сериализуется в JSON напрямую)
     [System.Text.Json.Serialization.JsonIgnore]
     public string Password
