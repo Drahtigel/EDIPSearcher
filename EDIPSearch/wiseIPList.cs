@@ -67,18 +67,20 @@ namespace ipinpool
         }
 
         
-        public void AddAddress(IPclass? ip)
+        public bool AddAddress(IPclass? ip)
         {
             List<IPclass> iptable = this.ipTable;
-            AddAddressTo(ip, ref iptable);
+            bool AdressADDed = false;
+            AddAddressTo(ip, ref iptable, out AdressADDed);
+            return AdressADDed;
         }
-        public void AddAddressTo(IPclass? ip, ref List<IPclass> iptable)
-        {
+        public void AddAddressTo(IPclass? ip, ref List<IPclass> iptable, out bool success)
+        { 
+            success = false;
             if(ip==null) return;
-            // if (ipTable.IndexOf(ip) > 0) return;
-            // if(Filter.IndexOf(ip) > 0) return;
             if (AddrInTable(ip, iptable)) return;
             if (AddrInTable(ip, Filter)) return;
+            success = true;
             iptable.Add(ip);
             // 3.Вызываем событие, если на него кто-то подписался
             OnAddressAdded?.Invoke(ip);
@@ -122,7 +124,8 @@ namespace ipinpool
                 string ip_str = ipSearch(s);
                 if (ip_str != null)
                 {
-                    AddAddressTo(IPclass.Parse(ip_str), ref rez);
+                    bool adressAdded = false;
+                    AddAddressTo(IPclass.Parse(ip_str), ref rez, out adressAdded);
                 }
             }
             return rez;
@@ -321,6 +324,8 @@ namespace ipinpool
             Filename = filename;
         }
     }
+
+
 
     public class IPclass
     {

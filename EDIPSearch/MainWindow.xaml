@@ -6,227 +6,251 @@
         xmlns:local="clr-namespace:EDIPSearch"
         mc:Ignorable="d"
         Title="Elite Dangerous: Log Parser &amp; Router Sync [CMDR Edition]" Height="450" Width="800"  Background="#11161B" Foreground="#E0E6ED"
-        Icon="pack://application:,,,/app_icon.ico">
+        Icon="pack://application:,,,/app_icon.ico"
+        WindowStyle="None"
+        AllowsTransparency="True"
+       >
     <Window.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
-                <!-- Подключаем созданный файл темы из ресурсов проекта -->
                 <ResourceDictionary Source="EliteTheme.xaml" />
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </Window.Resources>
 
-    <Grid Margin="15">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <!-- Панель управления -->
-            <RowDefinition Height="*"/>
-            <!-- Основной контент -->
-            <RowDefinition Height="Auto"/>
-            <!-- Статус бар -->
-        </Grid.RowDefinitions>
+    <Border Background="#11161B" BorderBrush="#FF7100" BorderThickness="1">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="30"/>
+                <!-- Роу 0: Яркая шапка -->
+                <RowDefinition Height="Auto"/>
+                <!-- Роу 1: Кнопки управления -->
+                <RowDefinition Height="*"/>
+                <!-- Роу 2: Основной контент таблицы -->
+            </Grid.RowDefinitions>
 
-        <!-- ВЕРХНЯЯ ПАНЕЛЬ: Твои старые кнопки + новые переключатели -->
-        <Border Grid.Row="0" Background="#1B2228" CornerRadius="4" Padding="10" Margin="0,0,0,15" BorderBrush="#33FF7100" BorderThickness="1">
-            <Grid>
-                <!-- Используем WrapPanel, чтобы уместить И ТВОИ СТАРЫЕ КНОПКИ, и новые элементы -->
-                <WrapPanel Orientation="Horizontal" VerticalAlignment="Center">
+            <!-- ========================================== -->
+            <!-- СТРОКА 0: КАСТОМНЫЙ ЗАГОЛОВОК ОКНА (ЯРКИЙ ФОН) -->
+            <!-- ========================================== -->
+            <Grid Grid.Row="0" Background="#252F38" MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
 
-                    <!-- КНОПКИ ИЗ ТВОЕЙ СТАРЫЙ ПРОГРАММЫ (Верни их сюда со всеми их именами и событиями Click) -->
-                    <Button x:Name="btnOldParse" Content="АНАЛИЗ ЛОГОВ" Margin="0,0,10,0" Click="BtnOldParse_Click" Style="{StaticResource EliteButton}"/>
-                    <Button Content="НАСТРОЙКИ" Margin="0,0,20,0" Click="BtnOldSettings_Click" Style="{StaticResource EliteButton}" />
+                <TextBlock Text="Elite Dangerous: Log Parser &amp; Router Sync [CMDR Edition]" 
+                           Foreground="#FF7100" FontWeight="Bold" VerticalAlignment="Center" Margin="15,0,0,0" FontSize="11"/>
 
-                    <!-- Новые элементы управления Mikrotik REST API -->
-                    <Button Content="⚙ MIKROTIK REST" Style="{StaticResource EliteButton}" Margin="0,0,20,0" Click="BtnOpenSettings_Click"/>
-
-                    <CheckBox x:Name="chkEnableMonitoring" Content="АВТО-ОТСЛЕЖИВАНИЕ" 
-                      Foreground="#FF7100" FontWeight="Bold" Margin="0,0,20,0" VerticalAlignment="Center"
-                      Checked="ChkEnableMonitoring_Checked" Unchecked="ChkEnableMonitoring_Unchecked" IsChecked="True"/>
-
-                    <!-- Статус игры -->
-                    <StackPanel Orientation="Horizontal" Margin="20,0,0,0">
-                        <TextBlock x:Name="txtGameIcon" Text="🛑" FontSize="16" VerticalAlignment="Center" Margin="0,0,5,0"/>
-                        <TextBlock x:Name="txtGameStatus" Text="ИГРА НЕ ЗАПУЩЕНА" Foreground="#FF4500" FontWeight="Bold" VerticalAlignment="Center"/>
-                    </StackPanel>
-                </WrapPanel>
-            </Grid>
-        </Border>
-
-        <!-- ЦЕНТРАЛЬНАЯ ЧАСТЬ: Разделена на две колонки -->
-        <Grid Grid.Row="1">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="2*"/>
-                <!-- Основная таблица адресов (твоя существующая) -->
-                <ColumnDefinition Width="1*"/>
-                <!-- Новая панель: Информативность / Живой лог -->
-            </Grid.ColumnDefinitions>
-
-            <!-- Твоя существующая таблица адресов (пример структуры, привяжи свою) -->
-            <Border Grid.Column="0" Background="#1B2228" CornerRadius="4" BorderBrush="#22FF7100" BorderThickness="1" Margin="0,0,10,0" Padding="5">
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                    </Grid.RowDefinitions>
-                    <!-- Счетчик адресов прямо над таблицей -->
-                    <StackPanel Orientation="Horizontal" Margin="5">
-                        <TextBlock Text="ВСЕГО АДРЕСОВ В ТАБЛИЦЕ: " Foreground="#E0E6ED" FontWeight="Bold"/>
-                        <TextBlock x:Name="txtTotalAddressesCount" Text="0" Foreground="#FFA000" FontWeight="Bold"/>
-                    </StackPanel>
-
-                    <DataGrid x:Name="dgAddresses" Grid.Row="1" 
-                         Background="Transparent" 
-                         RowBackground="#161C20" 
-                         AlternatingRowBackground="#1B2228" 
-                         Foreground="#E0E6ED" 
-                         BorderThickness="0" 
-                         HeadersVisibility="Column"
-                         GridLinesVisibility="Horizontal"
-                         HorizontalGridLinesBrush="#1A33FF71"
-                         AutoGenerateColumns="False" 
-                         CanUserAddRows="False" 
-                         SelectionUnit="FullRow"
-                         IsReadOnly="True"
-                         ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-                        <!-- Отключаем горизонтальный скролл, чтобы убрать белый артефакт в углу -->
-
-                        <DataGrid.Resources>
-                            
-                            <!-- 1. СТИЛИЗАЦИЯ ЧЕКБОКСА В ТАБЛИЦЕ (Делаем его оранжевым под стиль Элиты) -->
-                            <Style TargetType="CheckBox">
-                                <Setter Property="Background" Value="#11161B"/>
-                                <Setter Property="BorderBrush" Value="#FF7100"/>
-                                <Setter Property="Foreground" Value="#E0E6ED"/>
-                            </Style>
-
-                            <!-- 2. СТИЛИЗАЦИЯ ПОЛЗУНКА СКРОЛЛБАРА -->
-                            <Style x:Key="ScrollThumbs" TargetType="Thumb">
-                                <Setter Property="Template">
-                                    <Setter.Value>
-                                        <ControlTemplate TargetType="Thumb">
-                                            <!-- Рисуем аккуратную оранжевую полоску скругленной формы -->
-                                            <Grid x:Name="Grid">
-                                                <Border HorizontalAlignment="Stretch" VerticalAlignment="Stretch" 
-                                Background="#55FF7100" CornerRadius="3" MinHeight="20" />
-                                            </Grid>
-                                            <ControlTemplate.Triggers>
-                                                <!-- При наведении мыши ползунок загорается ярким неоном -->
-                                                <Trigger Property="IsMouseOver" Value="true">
-                                                    <Setter Property="Background" Value="#FF7100"/>
-                                                </Trigger>
-                                            </ControlTemplate.Triggers>
-                                        </ControlTemplate>
-                                    </Setter.Value>
-                                </Setter>
-                            </Style>
-
-                            <!-- 3. ГЛОБАЛЬНЫЙ ШАБЛОН ДЛЯ ВСЕХ СКРОЛЛБАРОВ ТАБЛИЦЫ -->
-                            <Style TargetType="ScrollBar">
-                                <Setter Property="Background" Value="#11161B" />
-                                <Setter Property="Width" Value="8" />
-                                <Setter Property="Template">
-                                    <Setter.Value>
-                                        <ControlTemplate TargetType="ScrollBar">
-                                            <Grid x:Name="Bg" Background="#11161B" SnapsToDevicePixels="true">
-                                                <!-- Трек, по которому бегает ползунок -->
-                                                <Track x:Name="PART_Track" IsDirectionReversed="true" IsEnabled="{TemplateBinding IsEnabled}">
-                                                    <Track.DecreaseRepeatButton>
-                                                        <!-- Пустая прозрачная кнопка вместо верхней стрелки Windows -->
-                                                        <RepeatButton Command="ScrollBar.LineUpCommand" Opacity="0" Focusable="false" />
-                                                    </Track.DecreaseRepeatButton>
-                                                    <Track.Thumb>
-                                                        <!-- Наш кастомный оранжевый ползунок -->
-                                                        <Thumb Style="{StaticResource ScrollThumbs}" />
-                                                    </Track.Thumb>
-                                                    <Track.IncreaseRepeatButton>
-                                                        <!-- Пустая прозрачная кнопка вместо нижней стрелки Windows -->
-                                                        <RepeatButton Command="ScrollBar.LineDownCommand" Opacity="0" Focusable="false" />
-                                                    </Track.IncreaseRepeatButton>
-                                                </Track>
-                                            </Grid>
-                                        </ControlTemplate>
-                                    </Setter.Value>
-                                </Setter>
-                            </Style>
-                        </DataGrid.Resources>
-                        <DataGrid.ContextMenu>
-                            <!-- Убрали ошибочный AllowsTransparency. Оставляем только базовые свойства -->
-                            <ContextMenu Background="#1B2228" BorderBrush="#FF7100" BorderThickness="1">
-                                <MenuItem Header="Выгрузить список в TXT..." Click="BtnExportText_Click"/>
-                            </ContextMenu>
-                        </DataGrid.ContextMenu>
-                        <!-- Стилизация заголовков (остается без изменений) -->
-                        <DataGrid.ColumnHeaderStyle>
-                            <Style TargetType="DataGridColumnHeader">
-                                <Setter Property="Background" Value="#1B2228"/>
-                                <Setter Property="Foreground" Value="#FF7100"/>
-                                <Setter Property="FontWeight" Value="Bold"/>
-                                <Setter Property="BorderBrush" Value="#FF7100"/>
-                                <Setter Property="BorderThickness" Value="0,0,0,1"/>
-                                <Setter Property="Padding" Value="10,6"/>
-                            </Style>
-                        </DataGrid.ColumnHeaderStyle>
-
-                        <!-- Колонки таблицы -->
-                        <DataGrid.Columns>
-                            <DataGridTextColumn Header="IP АДРЕС" Binding="{Binding IP}" Width="2*"/>
-                            <DataGridTextColumn Header="МАСКА" Binding="{Binding Mask}" Width="1*"/>
-                        </DataGrid.Columns>
-                    </DataGrid>
-
-
-                </Grid>
-            </Border>
-
-            <!-- ПРАВАЯ ПАНЕЛЬ: Статистика файла + Лента активности -->
-            <Border Grid.Column="1" Background="#1B2228" CornerRadius="4" BorderBrush="#33FF7100" BorderThickness="1" Padding="10">
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <!-- Заголовок -->
-                        <RowDefinition Height="Auto"/>
-                        <!-- Имя файла -->
-                        <RowDefinition Height="Auto"/>
-                        <!-- Счетчик строк -->
-                        <RowDefinition Height="*"/>
-                        <!-- Список логов -->
-                    </Grid.RowDefinitions>
-
-                    <TextBlock Text="МОНИТОРИНГ ЖУРНАЛА:" Foreground="#FF7100" FontWeight="Bold" Margin="0,0,0,8"/>
-
-                    <!-- ДИАГНОСТИКА: Имя файла лога -->
-                    <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,4">
-                        <TextBlock Text="Файл: " Foreground="#888" FontSize="11"/>
-                        <TextBlock x:Name="txtCurrentLogFile" Text="нет файла" Foreground="#E0E6ED" FontSize="11" TextTrimming="CharacterEllipsis" MaxWidth="180"/>
-                    </StackPanel>
-
-                    <!-- ДИАГНОСТИКА: Прочитано строк -->
-                    <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,12">
-                        <TextBlock Text="Прочитано строк: " Foreground="#888" FontSize="11"/>
-                        <TextBlock x:Name="txtTotalLinesRead" Text="0" Foreground="#FFA000" FontSize="11" FontWeight="Bold"/>
-                    </StackPanel>
-
-                    <!-- Лента событий -->
-                    <ListBox x:Name="lstLiveActivity" Grid.Row="3" Background="#11161B" Foreground="#FFA000" BorderThickness="0" FontSize="11">
-                        <ListBox.ItemTemplate>
-                            <DataTemplate>
-                                <TextBlock Text="{Binding}" Margin="2"/>
-                            </DataTemplate>
-                        </ListBox.ItemTemplate>
-                    </ListBox>
-                </Grid>
-            </Border>
-        </Grid>
-
-        <!-- НИЖНИЙ СТАТУС БАР -->
-        <StatusBar Grid.Row="2" Background="Transparent" Foreground="#888" Margin="0,10,0,0" Padding="0">
-            <StatusBarItem Padding="0">
-                <StackPanel Orientation="Horizontal">
-                    <TextBlock x:Name="tbStatusProp" Text="Ожидание..." Foreground="#FFA000"/>
-                    <TextBlock Text=" | " Foreground="#333"/>
-                    <TextBlock x:Name="tbStatusVal" Text="" Foreground="#E0E6ED"/>
+                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                    <Button Content="0" FontFamily="Marlett" Width="35" Height="30" Click="BtnMinimize_Click" Style="{StaticResource EliteButton}" BorderThickness="0" Background="Transparent"/>
+                    <Button Content="r" FontFamily="Marlett" Width="35" Height="30" Click="BtnClose_Click" Style="{StaticResource EliteButton}" BorderThickness="0" Background="Transparent"/>
                 </StackPanel>
-            </StatusBarItem>
-        </StatusBar>
-    </Grid>
+            </Grid>
+            <!-- ========================================== -->
+            <!-- СТРОКА 1: ПАНЕЛЬ УПРАВЛЕНИЯ С КНОПКАМИ -->
+            <!-- ========================================== -->
+            <Border Grid.Row="1" Background="#1B2228" CornerRadius="4" Padding="10" Margin="15,15,15,0" BorderBrush="#33FF7100" BorderThickness="1">
+                <Grid>
+                    <WrapPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <Button x:Name="btnOldParse" Content="АНАЛИЗ ЛОГОВ" Margin="0,0,10,0" Click="BtnOldParse_Click" Style="{StaticResource EliteButton}"/>
+                        <Button Content="НАСТРОЙКИ" Margin="0,0,20,0" Click="BtnOldSettings_Click" Style="{StaticResource EliteButton}" />
+                        <Button Content=" MIKROTIK REST" Style="{StaticResource EliteButton}" Margin="0,0,20,0" Click="BtnOpenSettings_Click"/>
+
+                        <!-- КНОПКА: Включение сетевого лога Elite Dangerous -->
+                        <Button x:Name="btnEnableNetLog" Content="ВКЛЮЧИТЬ СЕТЕВОЙ ЛОГ" Margin="0,0,20,0" Click="BtnEnableNetLog_Click" Style="{StaticResource EliteButton}"/>
+
+                        <CheckBox x:Name="chkEnableMonitoring" Content="АВТО-ОТСЛЕЖИВАНИЕ" Foreground="#FF7100" FontWeight="Bold" Margin="0,0,20,0" VerticalAlignment="Center" Checked="ChkEnableMonitoring_Checked" Unchecked="ChkEnableMonitoring_Unchecked" IsChecked="True"/>
+
+                        <!-- Статус игры -->
+                        <StackPanel Orientation="Horizontal" Margin="20,0,0,0">
+                            <TextBlock x:Name="txtGameIcon" Text="" FontSize="16" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                            <TextBlock x:Name="txtGameStatus" Text="ИГРА НЕ ЗАПУЩЕНА" Foreground="#FF4500" FontWeight="Bold" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </WrapPanel>
+                </Grid>
+            </Border>
+
+            <!-- ========================================== -->
+            <!-- СТРОКА 2: НАЧАЛО ОСНОВНОГО КОНТЕНТА -->
+            <!-- ========================================== -->
+            <Grid Grid.Row="2" Margin="15">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <Grid Grid.Row="0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="2*"/>
+                        <ColumnDefinition Width="1*"/>
+                    </Grid.ColumnDefinitions>
+                    <!-- ЛЕВАЯ ЧАСТЬ: Сводная таблица адресов dgAddresses -->
+                    <Border Grid.Column="0" Background="#1B2228" CornerRadius="4" BorderBrush="#22FF7100" BorderThickness="1" Margin="0,0,10,0" Padding="5">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+
+                            <StackPanel Orientation="Horizontal" Margin="5">
+                                <TextBlock Text="ВСЕГО АДРЕСОВ В ТАБЛИЦЕ: " Foreground="#E0E6ED" FontWeight="Bold"/>
+                                <TextBlock x:Name="txtTotalAddressesCount" Text="0" Foreground="#FFA000" FontWeight="Bold"/>
+                            </StackPanel>
+
+                            <DataGrid x:Name="dgAddresses" Grid.Row="1" Background="Transparent" RowBackground="#161C20" AlternatingRowBackground="#1B2228" Foreground="#E0E6ED" BorderThickness="0" HeadersVisibility="Column" GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="#1A33FF71" AutoGenerateColumns="False" CanUserAddRows="False" SelectionUnit="FullRow" IsReadOnly="True" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                <DataGrid.Resources>
+                                    <Style TargetType="CheckBox">
+                                        <Setter Property="Background" Value="#11161B"/>
+                                        <Setter Property="BorderBrush" Value="#FF7100"/>
+                                        <Setter Property="Foreground" Value="#E0E6ED"/>
+                                    </Style>
+                                    <Style x:Key="ScrollThumbs" TargetType="Thumb">
+                                        <Setter Property="Template">
+                                            <Setter.Value>
+                                                <ControlTemplate TargetType="Thumb">
+                                                    <Grid x:Name="Grid">
+                                                        <Border Background="#55FF7100" CornerRadius="3" MinHeight="20"/>
+                                                    </Grid>
+                                                    <ControlTemplate.Triggers>
+                                                        <Trigger Property="IsMouseOver" Value="true">
+                                                            <Setter Property="Background" Value="#FF7100"/>
+                                                        </Trigger>
+                                                    </ControlTemplate.Triggers>
+                                                </ControlTemplate>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </Style>
+                                    <Style TargetType="ScrollBar">
+                                        <Setter Property="Background" Value="#11161B"/>
+                                        <Setter Property="Width" Value="8"/>
+                                        <Setter Property="Template">
+                                            <Setter.Value>
+                                                <ControlTemplate TargetType="ScrollBar">
+                                                    <Grid Background="#11161B">
+                                                        <Track x:Name="PART_Track" IsDirectionReversed="true">
+                                                            <Track.DecreaseRepeatButton>
+                                                                <RepeatButton Command="ScrollBar.LineUpCommand" Opacity="0"/>
+                                                            </Track.DecreaseRepeatButton>
+                                                            <Track.Thumb>
+                                                                <Thumb Style="{StaticResource ScrollThumbs}"/>
+                                                            </Track.Thumb>
+                                                            <Track.IncreaseRepeatButton>
+                                                                <RepeatButton Command="ScrollBar.LineDownCommand" Opacity="0"/>
+                                                            </Track.IncreaseRepeatButton>
+                                                        </Track>
+                                                    </Grid>
+                                                </ControlTemplate>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </Style>
+                                </DataGrid.Resources>
+                                <DataGrid.ContextMenu>
+                                    <ContextMenu Background="#1B2228" BorderBrush="#FF7100" BorderThickness="1">
+                                        <MenuItem Header="Выгрузить список в TXT..." Click="BtnExportText_Click"/>
+                                        <!-- Сепаратор-разделитель -->
+                                        <Separator Background="#33FF7100" Margin="2,4"/>
+                                        <MenuItem Header="Добавить новый IP/Подсеть..." Click="BtnOpenOverlay_Click"/>
+                                        <!-- НАШ НОВЫЙ ПУНКТ: Удаление адреса из таблицы и роутеров -->
+                                        <MenuItem Header="Удалить выбранный адрес" Click="BtnDeleteAddress_Click"/>
+                                    </ContextMenu>
+                                </DataGrid.ContextMenu>
+                                <DataGrid.ColumnHeaderStyle>
+                                    <Style TargetType="DataGridColumnHeader">
+                                        <Setter Property="Background" Value="#1B2228"/>
+                                        <Setter Property="Foreground" Value="#FF7100"/>
+                                        <Setter Property="FontWeight" Value="Bold"/>
+                                        <Setter Property="BorderBrush" Value="#FF7100"/>
+                                        <Setter Property="BorderThickness" Value="0,0,0,1"/>
+                                        <Setter Property="Padding" Value="10,6"/>
+                                    </Style>
+                                </DataGrid.ColumnHeaderStyle>
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="IP АДРЕС" Binding="{Binding IP}" Width="2*"/>
+                                    <DataGridTextColumn Header="МАСКА" Binding="{Binding Mask}" Width="1*"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </Grid>
+                    </Border>
+
+                    <!-- ПРАВАЯ ЧАСТЬ: Мониторинг журнала -->
+                    <Border Grid.Column="1" Background="#1B2228" CornerRadius="4" BorderBrush="#33FF7100" BorderThickness="1" Padding="10">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+                            <TextBlock Text="МОНИТОРИНГ ЖУРНАЛА:" Foreground="#FF7100" FontWeight="Bold" Margin="0,0,0,8"/>
+                            <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,4">
+                                <TextBlock Text="Файл: " Foreground="#888" FontSize="11"/>
+                                <TextBlock x:Name="txtCurrentLogFile" Text="нет файла" Foreground="#E0E6ED" FontSize="11" TextTrimming="CharacterEllipsis" MaxWidth="180"/>
+                            </StackPanel>
+                            <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,12">
+                                <TextBlock Text="Прочитано строк: " Foreground="#888" FontSize="11"/>
+                                <TextBlock x:Name="txtTotalLinesRead" Text="0" Foreground="#FFA000" FontSize="11" FontWeight="Bold"/>
+                            </StackPanel>
+                            <ListBox x:Name="lstLiveActivity" Grid.Row="3" Background="#11161B" Foreground="#FFA000" BorderThickness="0" FontSize="11">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding}" Margin="2"/>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </Grid>
+                    </Border>
+                </Grid>
+
+                <!-- НИЖНИЙ СТАТУС-БАР -->
+                <StatusBar Grid.Row="1" Background="Transparent" Foreground="#888" Margin="0,10,0,0" Padding="0">
+                    <StatusBarItem Padding="0">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock x:Name="tbStatusProp" Text="Ожидание..." Foreground="#FFA000"/>
+                            <TextBlock Text=" | " Foreground="#333"/>
+                            <TextBlock x:Name="tbStatusVal" Text="" Foreground="#E0E6ED"/>
+                        </StackPanel>
+                    </StatusBarItem>
+                </StatusBar>
+            </Grid>
+            <!-- ========================================== -->
+            <!-- ОВЕРЛЕЙ ДЛЯ РУЧНОГО ДОБАВЛЕНИЯ АДРЕСА     -->
+            <!-- ========================================== -->
+            <!-- По умолчанию видимость скрыта (Collapsed). Кнопка "ДОБАВИТЬ" включит её -->
+            <Grid x:Name="gridOverlay" Grid.Row="0" Grid.RowSpan="3" Background="#AA000000" Visibility="Collapsed">
+                <Border BorderBrush="#FF7100" BorderThickness="1" Background="#11161B" 
+                        CornerRadius="4" Width="400" Height="180" 
+                        HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <Grid Margin="20">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <!-- Заголовок -->
+                            <RowDefinition Height="*"/>
+                            <!-- Поле ввода -->
+                            <RowDefinition Height="Auto"/>
+                            <!-- Кнопки -->
+                        </Grid.RowDefinitions>
+
+                        <!-- Заголовок оверлея -->
+                        <TextBlock Grid.Row="0" Text="КОМАНДНЫЙ ИНТЕРФЕЙС: ДОБАВЛЕНИЕ IP / ПОДСЕТИ" 
+                                   Foreground="#FF7100" FontWeight="Bold" FontSize="11" Margin="0,0,0,15" HorizontalAlignment="Center"/>
+
+                        <!-- Поле ввода с подсказкой внутри Grid -->
+                        <StackPanel Grid.Row="1" VerticalAlignment="Center">
+                            <TextBox x:Name="tbInputAddress" Height="26" VerticalContentAlignment="Center" Padding="5,0"
+                                     ToolTip="Введите IP (например, 1.2.3.4) или подсеть (1.2.3.0/24)"/>
+                            <TextBlock x:Name="lblValidationError" Text="Неверный формат IP-адреса или подсети!" 
+                                       Foreground="#FF4500" FontSize="10" FontWeight="Bold" Margin="0,4,0,0" Visibility="Collapsed"/>
+                        </StackPanel>
+
+                        <!-- Кнопки управления внизу оверлея -->
+                        <Grid Grid.Row="2" Margin="0,15,0,0">
+                            <Button x:Name="btnOverlayCancel" Content="ОТМЕНА" HorizontalAlignment="Left" Width="90" Height="26" Style="{StaticResource EliteButton}" Click="BtnOverlayCancel_Click"/>
+                            <Button x:Name="btnOverlaySubmit" Content="ВНЕСTI В БАЗУ" HorizontalAlignment="Right" Width="120" Height="26" Style="{StaticResource EliteButton}" Click="BtnOverlaySubmit_Click"/>
+                        </Grid>
+                    </Grid>
+                </Border>
+            </Grid>
+
+        </Grid>
+    </Border>
 </Window>

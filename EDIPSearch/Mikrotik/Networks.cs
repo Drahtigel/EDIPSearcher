@@ -364,6 +364,48 @@ public class MikrotikRestClient
         return addressMap;
     }
 
+    // Добавьте внутрь класса MikrotikRestClient в файле Networks.cs
+
+    /// <summary>
+    /// Асинхронно удаляет IP-адрес из конкретного списка файрвола на Mikrotik.
+    /// </summary>
+    public async Task<bool> DeleteAddressAsync(string address, string listName)
+    {
+        try
+        {
+            // Шаг 1: Запрашиваем внутренний .id записи на роутере по фильтру IP и имени списка
+            // Mikrotik REST API поддерживает фильтрацию через параметры запроса
+            var response = await _httpClient.GetAsync($"ip/firewall/address-list?address={address}&list={listName}&.proplist=.id").ConfigureAwait(false);
+
+            if (!response.IsSuccessStatusCode) return false;
+
+            var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+            using (JsonDocument doc = JsonDocument.Parse(json))
+            {
+                if (doc.RootElement.ValueKind == JsonValueKind.Array && doc.RootElement.GetArrayLength() > 0)
+                {
+                    // Забираем .id первой найденной записи
+                    var firstEntry = doc.RootElement.EnumerateArray().First();
+                    if (firstEntry.TryGetProperty(".id", out JsonElement idProp))
+                    {
+                        string id = idProp.GetString();
+                        if (!string.IsNullOrEmpty(id))
+                        {
+                            // Шаг 2: Отправляем HTTP DELETE запрос на удаление этой конкретной записи по её .id
+                            var deleteResponse = await _httpClient.DeleteAsync($"ip/firewall/address-list/{id}").ConfigureAwait(false);
+                            return deleteResponse.IsSuccessStatusCode;
+                        }
+                    }
+                }
+            }
+        }
+        catch
+        {
+            return false;
+        }
+        return false;
+    }
+
 }
 
 

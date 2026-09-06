@@ -19,6 +19,15 @@ namespace EDIPSearch
             InitializeComponent();
             LoadData();
         }
+        private void TitleBar_MouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            if (e.ChangedButton == System.Windows.Input.MouseButton.Left) this.DragMove();
+        }
+
+        private void BtnClose_Click(object sender, RoutedEventArgs e)
+        {
+            this.Close();
+        }
 
         private void LoadData()
         {

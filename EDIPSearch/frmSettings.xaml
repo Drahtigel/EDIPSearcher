@@ -5,8 +5,12 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:EDIPSearch"
         mc:Ignorable="d"
-        Title="Бортовой компьютер: Настройки конфигурации" Height="450" Width="800" Background="#11161B" Foreground="#E0E6ED"
-        Icon="pack://application:,,,/app_icon.ico">
+             Title="Бортовой компьютер: Настройки конфигурации" Height="450" Width="800" 
+        Background="#11161B" Foreground="#E0E6ED"
+        Icon="pack://application:,,,/app_icon.ico"
+        WindowStyle="None"
+        AllowsTransparency="True">
+
     <Window.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
@@ -15,84 +19,61 @@
         </ResourceDictionary>
     </Window.Resources>
 
-    <DockPanel Margin="10">
-        <!-- НИЖНЯЯ ПАНЕЛЬ С КНОПКАМИ: Развели по краям и отделили оранжевой линией -->
-        <Border DockPanel.Dock="Bottom" BorderBrush="#33FF7100" BorderThickness="0,1,0,0" Padding="0,10,0,0" Margin="0,10,0,0">
-            <Grid>
-                <Button x:Name="btnCancel" Style="{StaticResource EliteButton}" Content="ОТМЕНА" HorizontalAlignment="Left" Width="100" Height="28"/>
-                <Button x:Name="btnOK" Style="{StaticResource EliteButton}" Content="СОХРАНИТЬ" HorizontalAlignment="Right" Width="100" Height="28"/>
+    <Border Background="#11161B" BorderBrush="#FF7100" BorderThickness="1">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="30"/>
+                <!-- Роу 0: Заголовок -->
+                <RowDefinition Height="*"/>
+                <!-- Роу 1: Контент вкладок -->
+            </Grid.RowDefinitions>
+
+            <!-- ФИРМЕННЫЙ ЗАГОЛОВОК ОКНА -->
+            <Grid Grid.Row="0" Background="#252F38" MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="БОРТОВОЙ КОМПЬЮТЕР: НАСТРОЙКИ КОНФИГУРАЦИИ" 
+                           Foreground="#FF7100" FontWeight="Bold" VerticalAlignment="Center" Margin="15,0,0,0" FontSize="11"/>
+                <Button Content="r" FontFamily="Marlett" Width="35" Height="30" Grid.Column="1" Click="BtnClose_Click" Style="{StaticResource EliteButton}" BorderThickness="0" Background="Transparent"/>
             </Grid>
-        </Border>
 
-        <!-- ОСНОВНОЙ БЛОК ВКЛАДОК -->
-        <TabControl>
-            <TabItem Header="Основные настройки">
-                <!-- Padding="10" на самом гриде создаст одинаковые идеальные отступы от краев вкладки со всех сторон -->
-                <Grid  Margin="0,10,0,0">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <!-- Строка 1: Путь к ED -->
-                        <RowDefinition Height="Auto"/>
-                        <!-- Строка 2: Хранилище -->
-                        <RowDefinition Height="Auto"/>
-                        <!-- Строка 3: Чекбокс отслеживания -->
-                    </Grid.RowDefinitions>
-                    <Grid.ColumnDefinitions>
-                        <!-- Фиксированная ширина для подписей, чтобы левый край полей ввода был идеально ровным -->
-                        <ColumnDefinition Width="230"/>
-                        <!-- Поля ввода (*) заберут абсолютно всё свободное место между текстом и кнопкой -->
-                        <ColumnDefinition Width="*"/>
-                        <!-- Кнопка-иконка четко зафиксирована на правом краю -->
-                        <ColumnDefinition Width="Auto"/>
-                    </Grid.ColumnDefinitions>
+            <!-- ОСНОВНОЙ КОНТЕНТ -->
+            <DockPanel Grid.Row="1" Margin="10">
+                <!-- НИЖНЯЯ ПАНЕЛЬ С КНОПКАМИ -->
+                <Border DockPanel.Dock="Bottom" BorderBrush="#33FF7100" BorderThickness="0,1,0,0" Padding="0,10,0,0" Margin="0,10,0,0">
+                    <Grid>
+                        <Button x:Name="btnCancel" Style="{StaticResource EliteButton}" Content="ОТМЕНА" HorizontalAlignment="Left" Width="100" Height="28"/>
+                        <Button x:Name="btnOK" Style="{StaticResource EliteButton}" Content="СОХРАНИТЬ" HorizontalAlignment="Right" Width="100" Height="28"/>
+                    </Grid>
+                </Border>
 
-                    <!-- СТРОКА 1: ПУТЬ К ELITE DANGEROUS -->
-                    <Label Content="Путь к каталогу Elite Dangerous:" 
-               Grid.Row="0" Grid.Column="0" 
-               VerticalAlignment="Center" Margin="0,8"/>
+                <!-- ВКЛАДКИ НАСТРОЕК -->
+                <TabControl>
+                    <TabItem Header="Основные настройки">
+                        <Grid Margin="15">
+                            <StackPanel>
+                                <!-- Настройка 1: Авто-отслеживание -->
+                                <CheckBox x:Name="cbListenLog" 
+                                          Content="Отслеживать активный лог-файл сетевых соединений в реальном времени" 
+                                          Margin="0,0,0,20"/>
 
-                    <TextBox x:Name="tbEdPath" 
-                 Grid.Row="0" Grid.Column="1" 
-                 Height="26" Margin="5,8,10,8" 
-                 VerticalContentAlignment="Center"/>
+                                <!-- НАША НОВАЯ НАСТРОЙКА: Удаление файлов -->
+                                <CheckBox x:Name="cbDeleteProcessedLogs" 
+                                          Content="Принудительно удалять файлы логов после завершения анализа истории" 
+                                          Foreground="#FFA000"
+                                          ToolTip="Автоматически стирает старые обработанные файлы netLog, исключая файлы с текущей датой."
+                                          Margin="0,0,0,10"/>
 
-                    <Button x:Name="btnEDOpen" 
-                Grid.Row="0" Grid.Column="2" 
-                Style="{StaticResource EliteButton}" Content="📁" 
-                Width="32" Height="26" Margin="0,8" Padding="0" FontSize="14" 
-                ToolTip="Выбрать каталог игры"/>
+                                <TextBlock Text="* Внимание: Система безопасности оставляет нетронутыми логи за сегодняшние сутки, чтобы не прерывать запись активной сессии." 
+                                           Foreground="#55E0E6ED" FontSize="10" TextWrapping="Wrap" Margin="20,0,0,0"/>
+                            </StackPanel>
+                        </Grid>
+                    </TabItem>
 
-                    <!-- СТРОКА 2: ХРАНИЛИЩЕ ДАННЫХ ПРИЛОЖЕНИЯ -->
-                    <Label Content="Хранилище данных приложения:" 
-               Grid.Row="1" Grid.Column="0" 
-               VerticalAlignment="Center" Margin="0,8"/>
-
-                    <!-- Теперь это поле имеет точно такую же длину и выравнивание, как верхнее -->
-                    <TextBox x:Name="tbWorkingDir" 
-                 Grid.Row="1" Grid.Column="1" 
-                 Height="26" Margin="5,8,10,8" 
-                 VerticalContentAlignment="Center"/>
-
-                    <!-- Кнопка встала строго под верхней, образуя ровную линию правого края -->
-                    <Button x:Name="btnWorkingDir" 
-                Grid.Row="1" Grid.Column="2" 
-                Style="{StaticResource EliteButton}" Content="📁" 
-                Width="32" Height="26" Margin="0,8" Padding="0" FontSize="14" 
-                ToolTip="Выбрать папку хранилища"/>
-
-                    <!-- СТРОКА 3: ЧЕКБОКС АВТО-ОТСЛЕЖИВАНИЯ -->
-                    <!-- Размещаем его во 2-й колонке (под началом текстовых полей), растягивая на 2 колонки вправо -->
-                    <CheckBox x:Name="cbListenLog" 
-                  Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" 
-                  Content="Отслеживать активный лог-файл в реальном времени" 
-                  Margin="5,15,0,0"/>
-                </Grid>
-            </TabItem>
-
-
-
-            <!-- ВКЛАДКА 2: ФИЛЬТРЫ АДРЕСОВ (ListView превращен в таблицу) -->
-            <TabItem Header="Фильтры" ToolTip="Пул исключений IP-адресов">
+                    <!-- ВКЛАДКА 2: ФИЛЬТРЫ -->
+                    <TabItem Header="Фильтры" ToolTip="Пул исключений IP-адресов">
                 <DockPanel Margin="5">
                     <!-- Тулбар для добавления -->
                     <ToolBar DockPanel.Dock="Top" Margin="0,0,0,10">
@@ -100,9 +81,11 @@
                         <TextBox x:Name="tbAddress" Width="180" Height="24" VerticalContentAlignment="Center"/>
 
                         <!-- Плюс и Минус теперь ровные центрированные кнопки -->
-                        <Button Style="{StaticResource EliteButton}" x:Name="tbFilterAdd" Width="26" Height="24" Margin="6,0,0,0" Padding="0" FontWeight="Bold" Content="+"/>
-                        <Button Style="{StaticResource EliteButton}" x:Name="tbFilterRemove" Width="26" Height="24" Margin="4,0,0,0" Padding="0" FontWeight="Bold" Content="-"/>
-                    </ToolBar>
+                                <WrapPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+                                    <Button x:Name="btnFilterAdd" Content="ДОБАВИТЬ" Width="100" Height="26" Margin="0,0,10,0" Style="{StaticResource EliteButton}" Click="BtnFilterAdd_Click"/>
+                                    <Button x:Name="btnFilterRemove" Content="УДАЛИТЬ" Width="100" Height="26" Style="{StaticResource EliteButton}" Click="BtnFilterRemove_Click"/>
+                                </WrapPanel>
+                            </ToolBar>
 
                     <!-- ТАБЛИЦА ФИЛЬТРОВ: Отредерена через GridView колонок -->
                     <ListView x:Name="lvFilters" Background="Transparent" BorderThickness="0" Foreground="#E0E6ED">
@@ -185,5 +168,7 @@
                 </Grid>
             </TabItem>
         </TabControl>
-    </DockPanel>
+            </DockPanel>
+        </Grid>
+    </Border>
 </Window>

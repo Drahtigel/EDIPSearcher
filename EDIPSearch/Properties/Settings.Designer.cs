@@ -82,5 +82,17 @@ namespace EDIPSearch.Properties {
                 this["AutoMonitoringEnabled"] = value;
             }
         }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("False")]
+        public bool DeleteLogsAfterParse {
+            get {
+                return ((bool)(this["DeleteLogsAfterParse"]));
+            }
+            set {
+                this["DeleteLogsAfterParse"] = value;
+            }
+        }
     }
 }

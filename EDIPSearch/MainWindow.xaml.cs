@@ -4,8 +4,13 @@ using EDIPSearch.Network;
 using EDIPSearch.Properties;
 using ipinpool;
 using Microsoft.Win32;
+using System.Diagnostics;
 using System.IO;
+using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
+using System.Text.RegularExpressions;
+using System.Timers;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
@@ -16,10 +21,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
 using System.Windows.Threading;
-using System.Diagnostics;
-using System.Linq;
-using System.Timers;
-using System.Text.RegularExpressions;
+using System.Xml.Linq;
 
 namespace EDIPSearch;
 
@@ -42,64 +44,180 @@ public partial class MainWindow : Window
     private string? _currentLogFilePath;
     private long _lastLogPosition = 0;
     private int _linesReadCounter = 0; // Наш новый счетчик строк
+
+    // Добавьте в начало файла, если их нет:
+    // using System.Runtime.InteropServices;
+
+    #region Win32 Flash Window с автосбросом
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool FlashWindowEx(ref FLASHWINFO pwfi);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct FLASHWINFO
+    {
+        public uint cbSize;
+        public IntPtr hwnd;
+        public uint dwFlags;
+        public uint uCount;
+        public uint dwTimeout;
+    }
+
+    private const uint FLASHW_TRAY = 2;       // Мигать только иконкой на панели задач
+    private const uint FLASHW_CAPTION = 1;    // Мигать заголовком окна (для надежности)
+
+    /// <summary>
+    /// Запускает короткое мигание иконки (около 2-3 секунд) и автоматически останавливается
+    /// </summary>
+    private void FlashMainWindow()
+    {
+        // Если приложение прямо сейчас находится в фокусе у пользователя, мигать не нужно
+        if (this.IsActive) return;
+
+        var wih = new System.Windows.Interop.WindowInteropHelper(this);
+        IntPtr hWnd = wih.Handle;
+        if (hWnd == IntPtr.Zero) return;
+
+        FLASHWINFO fInfo = new FLASHWINFO();
+        fInfo.cbSize = Convert.ToUInt32(Marshal.SizeOf(fInfo));
+        fInfo.hwnd = hWnd;
+        fInfo.dwFlags = FLASHW_TRAY | FLASHW_CAPTION;
+        fInfo.uCount = 4; // Мигнуть ровно 4 раза (при стандартной частоте это займет ~2 секунды)
+        fInfo.dwTimeout = 0; // Использовать стандартную частоту мерцания курсора Windows
+
+        FlashWindowEx(ref fInfo);
+    }
+    #endregion
+
+
     public MainWindow()
     {
         InitializeComponent();
-        WorkingDir = System.IO.Path.Combine(WorkingDir, "EDIPSearch");
-        // Восстанавливаем состояние переключателя из настроек при старте
+
+        // 1. Инициализируем ленту активности (чтобы видеть шаги загрузки)
+        lstLiveActivity.Items.Clear();
+        lstLiveActivity.Items.Add("Инициализация бортового компьютера...");
+
+        // 2. Восстанавливаем состояние переключателя мониторинга из конфига
         chkEnableMonitoring.IsChecked = Properties.Settings.Default.AutoMonitoringEnabled;
 
-        if (Settings.Default.DataFolder != string.Empty)
+        // 3. Выстраиваем дефолтные значения путей, если в системе пусто
+        SetupDefaultPaths();
+
+        // 4. Принудительно исправляем старые ошибки (если там застрял Saved Games)
+        //FixApplicationConfiguration();
+
+        // 5. Загружаем фильтры IP-адресов из гарантированно настроенной рабочей папки
+        string filtersFilePath = System.IO.Path.Combine(WorkingDir, "filters.txt");
+        if (!File.Exists(filtersFilePath))
         {
-            WorkingDir = Settings.Default.DataFolder;
+            EDList.SetDefaultFilters(filtersFilePath);
+            lstLiveActivity.Items.Add("Создан базовый файл фильтров по умолчанию.");
         }
         else
         {
-            Settings.Default.DataFolder = WorkingDir;
+            EDList.LoadFilters(filtersFilePath);
+            lstLiveActivity.Items.Add("Файл фильтров успешно загружен.");
         }
 
-        if (!Directory.Exists(WorkingDir)) Directory.CreateDirectory(WorkingDir);
-        // if (!Directory.Exists(WorkingDir + "\\routers\\profiles")) Directory.CreateDirectory(WorkingDir + "\\routers\\profiles");
-        // if (!Directory.Exists(WorkingDir + "\\keys")) Directory.CreateDirectory(WorkingDir + "\\keys");
-        // 2. АВТООПРЕДЕЛЕНИЕ ПУТИ К ЛОГАМ ИГРЫ ПРИ ПЕРВОМ СТАРТЕ
-        string currentLogFolder = Properties.Settings.Default.EDLogFolder;
-        if (string.IsNullOrEmpty(currentLogFolder))
-        {
-            // Если в конфиге пусто — запускаем перенесенный автопоиск
-            currentLogFolder = AutoDetectEliteDangerousPath();
-
-            if (!string.IsNullOrEmpty(currentLogFolder))
-            {
-                Properties.Settings.Default.EDLogFolder = currentLogFolder;
-                Properties.Settings.Default.Save(); // Фиксируем найденный путь в системе
-            }
-        }
-        //Инициализация Mikrotik REST API
-        if (!File.Exists(WorkingDir + "\\filters.txt"))
-        {
-            EDList.SetDefaultFilters(WorkingDir + "\\filters.txt");
-        }
-        else
-        {
-            EDList.LoadFilters(WorkingDir + "\\filters.txt");
-        }
-        // Создаем экземпляр синхронизатора (например, на уровне MainWindow)
+        // 6. Подвязываем события парсера к ядру программы
         EDList.OnParseStart += EDList_OnParseStart;
         EDList.OnParseProceed += EDList_OnParseProceed;
         EDList.OnParseComplete += EDList_OnParseComplete;
-        SetupAndSyncMikrotiksAsync(); //Инициализация и синхронизация маршрутизаторов.
-                                     // Task.Run(SetupAndSyncMikrotiksAsync);
-        // Инициализируем таймер проверки игры (5000 миллисекунд = 5 секунд)
+
+        // 7. Инициализируем и синхронизируем маршрутизаторы Mikrotik
+        SetupAndSyncMikrotiksAsync();
+
+        // 8. Запускаем фоновый 5-секундный таймер проверки статуса игры Elite Dangerous
         _gameCheckTimer = new System.Timers.Timer(5000);
         _gameCheckTimer.Elapsed += GameCheckTimer_Elapsed;
         _gameCheckTimer.AutoReset = true;
-        _gameCheckTimer.Start(); // Запускаем постоянный фоновый опрос
+        _gameCheckTimer.Start();
 
-        //Загрузка роутеров
-        //  SetupTestRouter(); // <--- Заглушка
-        //Сохранение настроек - последний этап инициализации.
-        Settings.Default.Save();
+        // 9. Фиксируем все изменения и дефолты в конфигурации
+        Properties.Settings.Default.Save();
+
+        // 10. Проверяем XML-файлы сети в папке игры и управляем видимостью кнопки лога
+        UpdateNetLogButtonState();
     }
+
+
+    /// <summary>
+    /// Автоматически исправляет неверный путь в настройках приложения,
+    /// если там застрял Saved Games или пустая строка.
+    /// </summary>
+    private void FixApplicationConfiguration()
+    {
+        string currentPath = Properties.Settings.Default.EDLogFolder;
+
+        // Проверяем "грабли": если путь пустой или содержит Saved Games — переписываем
+        if (string.IsNullOrEmpty(currentPath) || currentPath.Contains("Saved Games"))
+        {
+            lstLiveActivity.Items.Add("Обнаружена ошибка в конфиге приложения. Исправляю...");
+
+            // Получаем правильный изолированный путь к сетевым логам из нашего нового класса
+            string correctPath = EDIPSearch.Core.EliteFolders.NetLogsFolder;
+
+            if (!string.IsNullOrEmpty(correctPath))
+            {
+                // Сохраняем правильный путь в системные настройки приложения
+                Properties.Settings.Default.EDLogFolder = correctPath;
+                Properties.Settings.Default.Save();
+
+                lstLiveActivity.Items.Add("Настройки успешно исправлены.");
+                lstLiveActivity.Items.Add($"Новый путь: ...\\{System.IO.Path.GetFileName(System.IO.Path.GetDirectoryName(correctPath))}\\Logs");
+            }
+            else
+            {
+                lstLiveActivity.Items.Add("Внимание: Игра закрыта, не удалось автоматически вычислить путь.");
+                lstLiveActivity.Items.Add("Запустите лаунчер/играйте или укажите путь вручную в Настройках.");
+            }
+        }
+    }
+    // Добавьте в класс MainWindow
+
+    /// <summary>
+    /// Проверяет системные настройки приложения и, если они пустые, 
+    /// устанавливает корректные пути по умолчанию для всех сущностей.
+    /// </summary>
+    private void SetupDefaultPaths()
+    {
+        // 1. Дефолтный путь к СЕТЕВЫМ ЛОГАМ игры (если в конфиге пусто)
+        if (string.IsNullOrEmpty(Properties.Settings.Default.EDLogFolder))
+        {
+            string detectedNetLogs = EDIPSearch.Core.EliteFolders.NetLogsFolder;
+
+            if (!string.IsNullOrEmpty(detectedNetLogs))
+            {
+                Properties.Settings.Default.EDLogFolder = detectedNetLogs;
+                lstLiveActivity.Items.Add("Установлен путь к сетевым логам по умолчанию.");
+            }
+            else
+            {
+                // Если игра закрыта и не найдена в реестре, временно оставляем пустым
+                lstLiveActivity.Items.Add("Предупреждение: Путь к сетевым логам не определен автоматически.");
+            }
+        }
+
+        // 2. Дефолтный путь к РАБОЧЕЙ ПАПКЕ приложения (где лежит filters.txt и routers.dat)
+        // Вместо жесткого перетирания переменной WorkingDir в теле конструктора, фиксируем её в настройках
+        if (string.IsNullOrEmpty(Properties.Settings.Default.DataFolder))
+        {
+            string defaultDataDir = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "EDIPSearch");
+            Properties.Settings.Default.DataFolder = defaultDataDir;
+            lstLiveActivity.Items.Add("Установлена рабочая папка приложения по умолчанию.");
+        }
+
+        // Принудительно сохраняем дефолты в системе, чтобы они зафиксировались в файле App.config / user.config
+        Properties.Settings.Default.Save();
+
+        // Синхронизируем локальную переменную WorkingDir с гарантированно заполненной настройкой
+        WorkingDir = Properties.Settings.Default.DataFolder;
+        if (!Directory.Exists(WorkingDir)) Directory.CreateDirectory(WorkingDir);
+    }
+
+
     private void BtnExportText_Click(object sender, RoutedEventArgs e)
     {
         // Генерируем динамическую временную метку (например, 20260825_201530)
@@ -369,13 +487,16 @@ public partial class MainWindow : Window
                     // 2. Замораживаем обновление DataGrid на время массового добавления
                     // (Это предотвратит ложные срабатывания CollectionChanged в WPF)
                     // Отключаем событие, чтобы UI не штормило, если у тебя там была подписка
-
+                    int addrCount = EDList.ipTable.Count;
                     foreach (var ip in discoveredIps)
                     {
                         // Твой метод проверяет дубликаты и добавляет в ipTable
                         EDList.AddAddress(ip);
                     }
-
+                    if (addrCount != EDList.ipTable.Count)
+                    {
+                        FlashMainWindow();
+                    }
                     // 3. Если были добавлены реально новые IP, принудительно и безопасно обновляем таблицу
                     // ... Твой код внутри Dispatcher.Invoke в методе LogReadTimer_Elapsed ...
                     if (discoveredIps.Count > 0)
@@ -393,6 +514,8 @@ public partial class MainWindow : Window
                             // Принудительно заставляем DataGrid плавно прокрутиться к этому элементу
                             dgAddresses.ScrollIntoView(lastItem);
                         }
+                        //Подмигиваем иконкой, когда добавили новый IP.
+                       
                     }
 
                 });
@@ -404,6 +527,303 @@ public partial class MainWindow : Window
             System.Diagnostics.Debug.WriteLine($"[Log Read Error] {ex.Message}");
         }
     }
+  
+
+    /// <summary>
+    /// Безупречный поиск папки игры без использования реестра и поврежденных user.config лаунчера
+    /// </summary>
+    private string GetEliteGameFolder()
+    {
+        try
+        {
+            // 1. Способ №1 (Ультимативный): Если игра запущена, берем путь напрямую из процесса!
+            var gameProcess = Process.GetProcessesByName("EliteDangerous64").FirstOrDefault();
+            if (gameProcess != null)
+            {
+                string processPath = gameProcess.MainModule?.FileName;
+                if (!string.IsNullOrEmpty(processPath))
+                {
+                    string? processDir = System.IO.Path.GetDirectoryName(processPath);
+                    if (!string.IsNullOrEmpty(processDir) && Directory.Exists(processDir))
+                    {
+                        return processDir;
+                    }
+                }
+            }
+
+            // 2. Способ №2: Если игра закрыта, используем уже сохраненный в настройках приложения путь к логам!
+            // Нам не нужен лаунчер, раз пилот уже настроил папку логов в frmSettings.
+            string logFolder = Properties.Settings.Default.EDLogFolder;
+            if (!string.IsNullOrEmpty(logFolder) && Directory.Exists(logFolder))
+            {
+                // Обычно логи лежат в: C:\Users\Имя\Saved Games\Frontier Developments\Elite Dangerous
+                // А игра ставится в Steam/Epic/Frontier. Пробуем использовать стандартный путь Steam как подстраховку
+                string programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
+                string steamDefault = System.IO.Path.Combine(programFiles, "Steam", "steamapps", "common", "Elite Dangerous", "Products", "elite-dangerous-odyssey-64");
+
+                if (Directory.Exists(steamDefault)) return steamDefault;
+
+                // Проверим также альтернативную папку Horizons
+                string steamHorisons = System.IO.Path.Combine(programFiles, "Steam", "steamapps", "common", "Elite Dangerous", "Products", "FORC-FDEV-D-1010");
+                if (Directory.Exists(steamHorisons)) return steamHorisons;
+            }
+
+            // 3. Способ №3: Поиск через системную запись инсталлятора (для standalone-версий)
+            using (var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\Elite Dangerous_is1"))
+            {
+                if (key != null)
+                {
+                    string installLoc = key.GetValue("InstallLocation") as string;
+                    if (!string.IsNullOrEmpty(installLoc))
+                    {
+                        string productsPath = System.IO.Path.Combine(installLoc, "Products", "elite-dangerous-odyssey-64");
+                        if (Directory.Exists(productsPath)) return productsPath;
+                    }
+                }
+            }
+        }
+        catch { }
+        return string.Empty;
+    }
+
+    // Добавьте в начало файла, если они еще не подключены:
+    // using System.Windows;
+    // using System.Xml.Linq;
+
+    /// <summary>
+    /// Проверяет конфигурацию игры, выводит статус в lstLiveActivity и скрывает/показывает кнопку
+    /// </summary>
+    // Добавьте в начало файла, если они еще не подключены:
+    // using System.IO;
+    // using System.Xml.Linq;
+    // using System.Linq;
+
+    /// <summary>
+    /// Проверяет конфигурацию игры в AppConfig и приоритетном AppConfigLocal, выводит статус в lstLiveActivity
+    /// </summary>
+    // Добавьте в начало файла, если они еще не подключены:
+    // using System.IO;
+    // using System.Xml.Linq;
+    // using System.Linq;
+    // using EDIPSearch.Core;
+
+    /// <summary>
+    /// Проверяет конфигурацию сети строго через класс EliteFolders и управляет кнопкой на UI
+    /// </summary>
+    private void UpdateNetLogButtonState()
+    {
+        if (_isEliteRunning)
+        {
+            btnEnableNetLog.IsEnabled = false;
+            btnEnableNetLog.ToolTip = "Нельзя изменить конфигурацию во время работы игры.";
+            return;
+        }
+
+        // Используем наше новое свойство сущности конфигурации игры
+        string configDir = EliteFolders.ConfigFolder;
+
+        if (string.IsNullOrEmpty(configDir) || !Directory.Exists(configDir))
+        {
+            lstLiveActivity.Items.Add("Ошибка: Папка конфигурации игры не найдена. Запустите игру один раз.");
+            btnEnableNetLog.Visibility = Visibility.Visible;
+            btnEnableNetLog.IsEnabled = false;
+            return;
+        }
+
+        string mainConfigPath = System.IO.Path.Combine(configDir, "AppConfig.xml");
+        string localConfigPath = System.IO.Path.Combine(configDir, "AppConfigLocal.xml");
+        bool isNetLogActive = false;
+
+        if (File.Exists(localConfigPath))
+        {
+            isNetLogActive = CheckNetworkLogAttribute(localConfigPath);
+        }
+
+        if (!isNetLogActive && File.Exists(mainConfigPath))
+        {
+            isNetLogActive = CheckNetworkLogAttribute(mainConfigPath);
+        }
+
+        if (isNetLogActive)
+        {
+            lstLiveActivity.Items.Add("Статус сети: Сетевой лог игры АКТИВИРОВАН.");
+            btnEnableNetLog.Visibility = Visibility.Collapsed; // Скрываем кнопку за ненадобностью
+        }
+        else
+        {
+            lstLiveActivity.Items.Add("Статус сети: Сетевой лог игры ВЫКЛЮЧЕН.");
+            btnEnableNetLog.Visibility = Visibility.Visible;
+            btnEnableNetLog.IsEnabled = true;
+        }
+    }
+
+    /// <summary>
+    /// Принудительно включает сетевой лог, создавая оверрид в AppConfigLocal.xml
+    /// </summary>
+    private void BtnEnableNetLog_Click(object sender, RoutedEventArgs e)
+    {
+        string configDir = EliteFolders.ConfigFolder;
+        if (string.IsNullOrEmpty(configDir) || !Directory.Exists(configDir)) return;
+
+        string localConfigPath = System.IO.Path.Combine(configDir, "AppConfigLocal.xml");
+
+        try
+        {
+            XDocument doc = File.Exists(localConfigPath) ? XDocument.Load(localConfigPath) : new XDocument(new XElement("AppConfig"));
+            XElement networkEl = doc.Descendants("Network").FirstOrDefault();
+
+            if (networkEl == null)
+            {
+                networkEl = new XElement("Network");
+                doc.Root?.Add(networkEl);
+            }
+
+            networkEl.SetAttributeValue("NetworkLog", "1");
+            networkEl.SetAttributeValue("VerboseLogging", "1");
+            doc.Save(localConfigPath);
+
+            lstLiveActivity.Items.Add("AppConfigLocal.xml успешно обновлен. Сетевой лог включен.");
+            MessageBox.Show("Сетевой лог успешно включен! Перезапустите игру для применения настроек.", "Успех", MessageBoxButton.OK, MessageBoxImage.Information);
+
+            UpdateNetLogButtonState();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Не удалось обновить файл конфигурации: {ex.Message}", "Ошибка доступа", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+
+    /// <summary>
+    /// Вспомогательный метод парсинга XML-структуры Фронтиров
+    /// </summary>
+    private bool CheckNetworkLogAttribute(string xmlPath)
+    {
+        try
+        {
+            XDocument doc = XDocument.Load(xmlPath);
+            XElement networkEl = doc.Descendants("Network").FirstOrDefault();
+            if (networkEl != null)
+            {
+                // Игра считывает как атрибут NetworkLog, так и VerboseLogging в зависимости от версии
+                var netLogAttr = networkEl.Attribute("NetworkLog");
+                var verboseAttr = networkEl.Attribute("VerboseLogging");
+
+                return (netLogAttr != null && netLogAttr.Value == "1") ||
+                       (verboseAttr != null && verboseAttr.Value == "1");
+            }
+        }
+        catch { }
+        return false;
+    }
+
+    /// <summary>
+    /// ИСПРАВЛЕННЫЙ ИНИЦИАЛИЗАТОР (замена блока в конструкторе MainWindow):
+    /// Полностью исключает автоматический запуск ломающего метода AutoDetectEliteDangerousPath в Saved Games
+    /// </summary>
+    private void InitializeApplicationPaths()
+    {
+        // Считываем путь, который пользователь настроил через frmSettings (это должна быть папка Logs в директории игры)
+        string currentLogFolder = Properties.Settings.Default.EDLogFolder;
+
+        if (string.IsNullOrEmpty(currentLogFolder) || !Directory.Exists(currentLogFolder))
+        {
+            lstLiveActivity.Items.Add("ВНИМАНИЕ: Укажите корректный путь к папке Logs игры в Настройках.");
+            btnEnableNetLog.IsEnabled = false;
+        }
+        else
+        {
+            // Вызываем проверку XML-файлов сети только по реальному пути пользователя
+            UpdateNetLogButtonState();
+        }
+    }
+
+    // Добавьте в начало файла, если они еще не подключены:
+    // using System.Collections.Generic;
+    // using System.Linq;
+    // using System.Threading.Tasks;
+    // using EDIPSearch.Models;
+    // using EDIPSearch.Network;
+
+    /// <summary>
+    /// Обработчик клика: Удаляет выбранные в таблице адреса из локальной базы, файла и роутеров
+    /// </summary>
+    // Добавьте в MainWindow.xaml.cs взамен старой версии
+
+    /// <summary>
+    /// Безопасный обработчик: удаляет выбранные адреса только из оперативной памяти и роутеров
+    /// </summary>
+    private async void BtnDeleteAddress_Click(object sender, RoutedEventArgs e)
+    {
+        var selectedRows = dgAddresses.SelectedItems.Cast<IPclass>().ToList();
+        if (selectedRows.Count == 0) return;
+
+        List<string> addressesToProcess = selectedRows.Select(x => x.ToString()).ToList();
+
+        var confirmDialog = new frmConfirmDelete(addressesToProcess);
+        confirmDialog.Owner = this;
+
+        if (confirmDialog.ShowDialog() == true && confirmDialog.IsConfirmed)
+        {
+            lstLiveActivity.Items.Add($"Удаление объектов из текущей сессии ({selectedRows.Count} шт.)...");
+
+            // 1. Чистим только оперативную память таблицы
+            foreach (var ipObj in selectedRows)
+            {
+                EDList.ipTable.Remove(ipObj);
+            }
+
+            txtTotalAddressesCount.Text = EDList.ipTable.Count.ToString();
+
+            // 2. Обновляем UI
+            dgAddresses.ItemsSource = null;
+            dgAddresses.ItemsSource = EDList.ipTable;
+
+            // 3. Асинхронно отправляем команды удаления на Mikrotik
+            List<MikrotikConfig> configuredRouters = RouterStorage.Load();
+            if (configuredRouters == null || configuredRouters.Count == 0) return;
+
+            await Task.Run(async () =>
+            {
+                foreach (var config in configuredRouters)
+                {
+                    var client = new MikrotikRestClient(config);
+                    var connectionStatus = await client.TestConnectionAsync().ConfigureAwait(false);
+                    if (connectionStatus != ConnectionStatus.Success) continue;
+
+                    int successCount = 0;
+                    foreach (string ipStr in addressesToProcess)
+                    {
+                        bool isRemoved = await client.DeleteAddressAsync(ipStr, config.TargetAddressList).ConfigureAwait(false);
+                        if (isRemoved) successCount++;
+                    }
+
+                    Dispatcher.Invoke(() =>
+                        lstLiveActivity.Items.Add($"Роутер [{config.Name}]: Удалено {successCount} из {addressesToProcess.Count} записей."));
+                }
+            });
+
+            lstLiveActivity.Items.Add("Процедура удаления завершена.");
+        }
+    }
+
+
+    private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ChangedButton == MouseButton.Left)
+            this.DragMove(); // Позволяет перетаскивать окно мышкой за любое место заголовка
+    }
+
+    private void BtnMinimize_Click(object sender, RoutedEventArgs e)
+    {
+        this.WindowState = WindowState.Minimized;
+    }
+
+    private void BtnClose_Click(object sender, RoutedEventArgs e)
+    {
+        this.Close();
+    }
+
 
     protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
     {
@@ -567,6 +987,132 @@ public partial class MainWindow : Window
             }
         });
     }
+    // Добавьте в класс MainWindow внутри MainWindow.xaml.cs
+    // Добавьте в класс MainWindow внутри MainWindow.xaml.cs
+
+    // Добавьте в MainWindow.xaml.cs взамен старой версии
+
+    /// <summary>
+    /// Безопасный обработчик: добавляет адрес только в оперативную память текущей сессии и на роутеры
+    /// </summary>
+    private async void BtnOverlaySubmit_Click(object sender, RoutedEventArgs e)
+    {
+        string rawInput = tbInputAddress.Text;
+
+        // 1. Проверяем корректность введенного формата строки
+        if (!IsValidIpOrSubnet(rawInput, out string normalizedIp))
+        {
+            lblValidationError.Visibility = Visibility.Visible;
+            return;
+        }
+
+        // Парсим строку методом ядра в объект IPclass
+        IPclass ipObj = IPclass.Parse(normalizedIp);
+        if (ipObj == null)
+        {
+            lblValidationError.Visibility = Visibility.Visible;
+            return;
+        }
+
+        // 2. Отправляем в ваше модифицированное ядро. 
+        // Изменения на роутеры идут СТРОГО если функция вернула true (адрес добавлен в память сессии)
+        bool isAddedLocally = EDList.AddAddress(ipObj);
+
+        if (isAddedLocally)
+        {
+            // Закрываем оверлей ввода
+            gridOverlay.Visibility = Visibility.Collapsed;
+            lstLiveActivity.Items.Add($"Адрес {normalizedIp} добавлен в пул текущей сессии.");
+
+            // Обновляем счетчик и таблицу на UI (без касания диска)
+            txtTotalAddressesCount.Text = EDList.ipTable.Count.ToString();
+            dgAddresses.ItemsSource = null;
+            dgAddresses.ItemsSource = EDList.ipTable;
+
+            // 3. АСИНХРОННЫЙ ПУШ НА МАРШРУТИЗАТОРЫ
+            List<MikrotikConfig> configuredRouters = RouterStorage.Load();
+            if (configuredRouters == null || configuredRouters.Count == 0) return;
+
+            await Task.Run(async () =>
+            {
+                foreach (var config in configuredRouters)
+                {
+                    var client = new MikrotikRestClient(config);
+                    var status = await client.TestConnectionAsync().ConfigureAwait(false);
+                    if (status != ConnectionStatus.Success) continue;
+
+                    // Для хостов /32 выставляем таймаут 7 дней (7d) согласно логике Фазы 2
+                    string timeoutParam = (ipObj.PoolSize == 32 || ipObj.PoolSize == 0) ? "7d" : null;
+
+                    // Отправляем запись в адрес-лист маршрутизатора через REST API
+                    await client.AddAddressAsync(ipObj.ToString(), config.TargetAddressList, timeoutParam).ConfigureAwait(false);
+
+                    Dispatcher.Invoke(() =>
+                        lstLiveActivity.Items.Add($"Роутер [{config.Name}]: Адрес {ipObj} успешно добавлен."));
+                }
+            });
+        }
+        else
+        {
+            // Ядро заблокировало добавление (дубликат или перекрытие подсетью в памяти сессии)
+            lstLiveActivity.Items.Add($"Отказ добавления {normalizedIp}: Адрес заблокирован фильтром подсетей ядра.");
+            MessageBox.Show("Данный IP-адрес или подсеть уже обрабатываются в текущей сессии, либо полностью перекрываются существующей подсетью!",
+                            "Фильтр подсетей ядра", MessageBoxButton.OK, MessageBoxImage.Warning);
+            gridOverlay.Visibility = Visibility.Collapsed;
+        }
+    }
+
+
+    /// <summary>
+    /// Открывает оверлей добавления адреса
+    /// </summary>
+    private void BtnOpenOverlay_Click(object sender, RoutedEventArgs e)
+    {
+        tbInputAddress.Clear();
+        lblValidationError.Visibility = Visibility.Collapsed;
+        gridOverlay.Visibility = Visibility.Visible;
+        tbInputAddress.Focus();
+    }
+
+    /// <summary>
+    /// Закрывает оверлей без сохранения
+    /// </summary>
+    private void BtnOverlayCancel_Click(object sender, RoutedEventArgs e)
+    {
+        gridOverlay.Visibility = Visibility.Collapsed;
+    }
+
+    /// <summary>
+    /// Проверяет, является ли строка корректным IPv4 адресом или подсетью с маской (X.X.X.X/Y)
+    /// </summary>
+    private bool IsValidIpOrSubnet(string input, out string normalizedIp)
+    {
+        normalizedIp = input.Trim();
+        if (string.IsNullOrEmpty(normalizedIp)) return false;
+
+        // Если маски нет, для совместимости с вашей логикой добавляем /32
+        if (!normalizedIp.Contains("/"))
+        {
+            normalizedIp += "/32";
+        }
+
+        string[] parts = normalizedIp.Split('/');
+        if (parts.Length != 2) return false;
+
+        // 1. Валидация самого IP-адреса
+        if (!System.Net.IPAddress.TryParse(parts[0], out System.Net.IPAddress ip) || ip.AddressFamily != System.Net.Sockets.AddressFamily.InterNetwork)
+        {
+            return false;
+        }
+
+        // 2. Валидация маски подсети (от 0 до 32)
+        if (!int.TryParse(parts[1], out int mask) || mask < 0 || mask > 32)
+        {
+            return false;
+        }
+
+        return true;
+    }
 
 
     private void CreatePVK()
@@ -648,6 +1194,53 @@ public partial class MainWindow : Window
             tbStatusProp.Text = "Анализ завершен успешно.";
             // Выводим итоговое количество элементов в твоем wiseIPList таблицы
             tbStatusVal.Text = $"Итого уникальных сетей в базе: {EDList.ipTable.Count}";
+            // ======================================================================
+            // НАША НОВАЯ НАСТРОЙКА: Безопасное удаление старых файлов netLog
+            // ======================================================================
+            if (Properties.Settings.Default.DeleteLogsAfterParse)
+            {
+                string netLogFolder = EDIPSearch.Core.EliteFolders.NetLogsFolder;
+
+                if (!string.IsNullOrEmpty(netLogFolder) && Directory.Exists(netLogFolder))
+                {
+                    try
+                    {
+                        var directoryInfo = new DirectoryInfo(netLogFolder);
+                        var logFiles = directoryInfo.GetFiles("netLog.*.log");
+
+                        DateTime today = DateTime.Today;
+                        int deletedCount = 0;
+
+                        foreach (var file in logFiles)
+                        {
+                            // Безопасность: сносим файлы логов, созданные строго ДО сегодняшнего дня
+                            if (file.LastWriteTime.Date < today)
+                            {
+                                try
+                                {
+                                    file.Delete();
+                                    deletedCount++;
+                                }
+                                catch
+                                {
+                                    // Если файл занят игрой или другим процессом — просто пропускаем его
+                                }
+                            }
+                        }
+
+                        if (deletedCount > 0)
+                        {
+                            string cleanMessage = $"[СИСТЕМА] Очистка диска: Удалено устаревших файлов логов: {deletedCount} шт.";
+                            lstLiveActivity.Items.Insert(0, cleanMessage);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        string errMessage = $"[СИСТЕМА] Ошибка при очистке папки логов: {ex.Message}";
+                        lstLiveActivity.Items.Insert(0, errMessage);
+                    }
+                }
+            }
         });
     }
 
